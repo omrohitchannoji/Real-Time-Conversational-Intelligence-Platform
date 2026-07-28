@@ -1,0 +1,31 @@
+# Security & Environment Variables (NEVER PUSH)
+.env
+*.env
+
+# Python Virtual Environments & Caches
+.venv/
+.venv-linux/
+__pycache__/
+*.pyc
+*.pyo
+
+# PySpark Checkpoints & Temporary Directories
+checkpoints/
+spark_temp/
+metastore_db/
+derby.log
+
+# Windows Hadoop Native Binaries
+hadoop/
+
+# Large Datasets (Stream from GitHub releases or local datasets directory)
+datasets/*.csv
+
+# System Files & Logs
+*.log
+.DS_Store
+Thumbs.db
+
+# IDE Settings
+.vscode/
+.idea/
