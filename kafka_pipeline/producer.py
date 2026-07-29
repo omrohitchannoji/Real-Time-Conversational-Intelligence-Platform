@@ -6,84 +6,82 @@ from config.kafka_config import PRODUCER_CONFIG, TOPIC
 from kafka_pipeline.producer_validation import validate_and_serialize_record
 from database.validation_logs import log_validation_errors
 
-DATASET_PATH = os.path.join("datasets", "streaming_dataset.csv")
+MULTI_DOMAIN_DATASET = os.path.join("datasets", "multi_domain_dataset.csv")
+FALLBACK_DATASET = os.path.join("datasets", "streaming_dataset.csv")
 
 
-def start_producer(dataset_path: str = DATASET_PATH, delay_sec: float = 0.5):
+def record_generator():
     """
-    Kafka Producer Application:
-    Reads historical dataset rows, applies Layer 1 & 2 validation, serializes,
-    and publishes to Kafka topic while routing failed records to DLQ.
+    Multi-Domain CSV Comment Generator:
+    Reads pre-harvested records across 10 subreddits from datasets/multi_domain_dataset.csv
+    (technology, science, AskReddit, sports, gaming, space, movies, news, worldnews, geopolitics).
     """
-    print(f"[START] Starting Kafka Producer targeting topic: '{TOPIC}'...")
-    
-    # Initialize Kafka Producer with Layer 3 settings
-    producer = KafkaProducer(**PRODUCER_CONFIG)
+    dataset_path = MULTI_DOMAIN_DATASET if os.path.exists(MULTI_DOMAIN_DATASET) else FALLBACK_DATASET
+    print(f"[OFFLINE] Streaming 10-domain dataset from: '{dataset_path}'...")
 
     if not os.path.exists(dataset_path):
-        print(f"[WARN] Dataset file not found at {dataset_path}. Falling back to mock generator...")
-        dataset_path = None
+        print(f"[ERROR] No dataset file found at {dataset_path}.")
+        return
 
-    def record_generator():
-        if dataset_path:
-            with open(dataset_path, mode="r", encoding="utf-8", errors="replace") as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    yield {
-                        "comment_id": row.get("comment_id"),
-                        "parent_id": row.get("parent_id"),
-                        "author": row.get("author"),
-                        "created_utc": row.get("created_utc"),
-                        "message": row.get("message"),
-                        "source": row.get("subreddit", "reddit")
-                    }
-        else:
-            import uuid
-            import random
-            from datetime import datetime
-            authors = ["Alice", "Bob", "Charlie", "David", "Om"]
-            messages = [
-                "Real-time streaming pipeline test.",
-                "SBERT embeddings generation coming soon.",
-                "Context modeling and graph analysis.",
-                "Testing invalid message filter test."
-            ]
-            while True:
-                yield {
-                    "comment_id": str(uuid.uuid4()),
-                    "parent_id": None,
-                    "author": random.choice(authors),
-                    "created_utc": datetime.utcnow().isoformat(),
-                    "message": random.choice(messages),
-                    "source": "simulation"
-                }
+    with open(dataset_path, mode="r", encoding="utf-8", errors="replace") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            yield {
+                "comment_id": row.get("comment_id"),
+                "parent_id": row.get("parent_id"),
+                "author": row.get("author"),
+                "created_utc": row.get("created_utc"),
+                "message": row.get("message"),
+                "source": row.get("subreddit", "reddit")
+            }
+
+
+def start_producer(delay_sec: float = 0.5):
+    """
+    Kafka Producer Application:
+    Streams multi-domain dataset records across 10 subreddits.
+    Applies Layer 1 & 2 Pydantic validation, serializes to UTF-8 JSON bytes,
+    and publishes to Kafka topic 'reddit_messages'.
+    """
+    print("=" * 60)
+    print(f"[START] Launching Multi-Domain Kafka Producer (Target Topic: '{TOPIC}')")
+    print("=" * 60)
+
+    # Initialize Kafka Producer with Layer 3 transport config (acks='all', retries=3)
+    producer = KafkaProducer(**PRODUCER_CONFIG)
 
     sent_count = 0
-    error_count = 0
+    error_records = []
 
     try:
-        for record in record_generator():
-            is_valid, payload_bytes, dlq_err = validate_and_serialize_record(record)
-            
+        for raw_record in record_generator():
+            # Apply Layer 1 Pydantic Validation & Layer 2 Serialization Validation
+            is_valid, payload_bytes, dlq_err = validate_and_serialize_record(raw_record)
+
             if is_valid and payload_bytes:
-                # Send bytes to Kafka topic
                 producer.send(TOPIC, value=payload_bytes)
                 sent_count += 1
-                print(f"[SENT #{sent_count}] Comment ID: {record.get('comment_id')} | Author: {record.get('author')}")
+                source_tag = raw_record.get("source", "reddit")
+                print(f"[PRODUCED #{sent_count}] Topic: {TOPIC} | Source: r/{source_tag} | Comment ID: {raw_record['comment_id']}")
+                time.sleep(delay_sec)
             else:
-                error_count += 1
-                print(f"[REJECTED] Reason: {dlq_err.get('reason') if dlq_err else 'Unknown'}")
                 if dlq_err:
-                    log_validation_errors([dlq_err])
+                    error_records.append(dlq_err)
+                    print(f"[REJECTED] {dlq_err['reason']} -> DLQ")
 
-            producer.flush()
-            time.sleep(delay_sec)
+            # Periodically flush DLQ error logs
+            if len(error_records) >= 10:
+                log_validation_errors(error_records)
+                error_records.clear()
 
     except KeyboardInterrupt:
-        print("\n[STOP] Producer manually stopped.")
+        print("\n[STOP] Producer execution paused by user.")
     finally:
+        if error_records:
+            log_validation_errors(error_records)
+        producer.flush()
         producer.close()
-        print(f"[SUMMARY] Sent {sent_count} valid records. Logged {error_count} validation errors to DLQ.")
+        print(f"[FINISHED] Total records published to Kafka: {sent_count}")
 
 
 if __name__ == "__main__":
