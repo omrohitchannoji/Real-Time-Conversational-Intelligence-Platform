@@ -5,46 +5,63 @@ from kafka import KafkaProducer
 from config.kafka_config import PRODUCER_CONFIG, TOPIC
 from kafka_pipeline.producer_validation import validate_and_serialize_record
 from database.validation_logs import log_validation_errors
+from database.mongo_connection import raw_messages_col
 
 MULTI_DOMAIN_DATASET = os.path.join("datasets", "multi_domain_dataset.csv")
-FALLBACK_DATASET = os.path.join("datasets", "streaming_dataset.csv")
 
 
 def record_generator():
     """
-    Multi-Domain CSV Comment Generator:
-    Reads pre-harvested records across 10 subreddits from datasets/multi_domain_dataset.csv
-    (technology, science, AskReddit, sports, gaming, space, movies, news, worldnews, geopolitics).
+    DB-to-DB Raw Message Generator:
+    Queries raw, unvalidated messages from Local MongoDB 'raw_messages' collection.
+    Falls back to datasets/multi_domain_dataset.csv if Local Mongo is unavailable.
     """
-    dataset_path = MULTI_DOMAIN_DATASET if os.path.exists(MULTI_DOMAIN_DATASET) else FALLBACK_DATASET
-    print(f"[OFFLINE] Streaming 10-domain dataset from: '{dataset_path}'...")
+    if raw_messages_col is not None:
+        try:
+            print("[PRODUCER] Querying raw records from Local MongoDB 'raw_database.raw_messages'...")
+            cursor = raw_messages_col.find({"status": "UNPROCESSED"})
+            count = 0
+            for doc in cursor:
+                count += 1
+                yield {
+                    "comment_id": doc.get("comment_id"),
+                    "parent_id": doc.get("parent_id"),
+                    "author": doc.get("author"),
+                    "created_utc": doc.get("created_utc"),
+                    "message": doc.get("message"),
+                    "source": doc.get("subreddit", "reddit")
+                }
+            if count > 0:
+                return
+        except Exception as e:
+            print(f"[WARN] Could not read from Local MongoDB ({e}). Falling back to CSV file...")
 
-    if not os.path.exists(dataset_path):
-        print(f"[ERROR] No dataset file found at {dataset_path}.")
-        return
-
-    with open(dataset_path, mode="r", encoding="utf-8", errors="replace") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            yield {
-                "comment_id": row.get("comment_id"),
-                "parent_id": row.get("parent_id"),
-                "author": row.get("author"),
-                "created_utc": row.get("created_utc"),
-                "message": row.get("message"),
-                "source": row.get("subreddit", "reddit")
-            }
+    # Fallback CSV generator
+    dataset_path = MULTI_DOMAIN_DATASET
+    print(f"[PRODUCER] Streaming from CSV file: '{dataset_path}'...")
+    if os.path.exists(dataset_path):
+        with open(dataset_path, mode="r", encoding="utf-8", errors="replace") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                yield {
+                    "comment_id": row.get("comment_id"),
+                    "parent_id": row.get("parent_id"),
+                    "author": row.get("author"),
+                    "created_utc": row.get("created_utc"),
+                    "message": row.get("message"),
+                    "source": row.get("subreddit", "reddit")
+                }
 
 
 def start_producer(delay_sec: float = 0.5):
     """
     Kafka Producer Application:
-    Streams multi-domain dataset records across 10 subreddits.
+    Streams raw records from Local MongoDB / CSV across 10 subreddits.
     Applies Layer 1 & 2 Pydantic validation, serializes to UTF-8 JSON bytes,
     and publishes to Kafka topic 'reddit_messages'.
     """
     print("=" * 60)
-    print(f"[START] Launching Multi-Domain Kafka Producer (Target Topic: '{TOPIC}')")
+    print(f"[START] Launching Enterprise DB-Driven Kafka Producer (Topic: '{TOPIC}')")
     print("=" * 60)
 
     # Initialize Kafka Producer with Layer 3 transport config (acks='all', retries=3)

@@ -1,7 +1,6 @@
 import os
 import csv
 import time
-import requests
 from dotenv import load_dotenv
 
 load_dotenv(override=True)
@@ -21,73 +20,35 @@ TARGET_SUBREDDITS = [
     "geopolitics"
 ]
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 ConversationalAI/1.0"
-}
 
-
-def harvest_public_reddit_json():
+def populate_local_raw_mongodb(records: list):
     """
-    Harvests live comments across 10 subreddits using Reddit's Public JSON Endpoints.
-    Requires ZERO API Keys and ZERO Developer Approval!
+    Populates Local MongoDB raw_messages collection with unvalidated raw records.
     """
-    print("[HARVEST] Harvesting comments via Public Reddit JSON Endpoints (No API keys required)...")
-    records = []
-    fieldnames = ["comment_id", "parent_id", "author", "created_utc", "message", "subreddit"]
-
-    for sub_name in TARGET_SUBREDDITS:
-        url = f"https://www.reddit.com/r/{sub_name}/comments.json?limit=100"
-        print(f"  * Fetching public comments from r/{sub_name}...")
-        try:
-            res = requests.get(url, headers=HEADERS, timeout=10)
-            if res.status_code == 200:
-                data = res.json()
-                children = data.get("data", {}).get("children", [])
-                for item in children:
-                    c = item.get("data", {})
-                    body = c.get("body", "")
-                    if not body or body == "[deleted]":
-                        continue
-                    created_raw = c.get("created_utc", time.time())
-                    records.append({
-                        "comment_id": c.get("id"),
-                        "parent_id": c.get("parent_id"),
-                        "author": c.get("author", "[deleted]"),
-                        "created_utc": time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(created_raw)),
-                        "message": body.replace("\n", " ").strip(),
-                        "subreddit": sub_name
-                    })
-            else:
-                print(f"    [WARN] Status {res.status_code} for r/{sub_name}")
-            time.sleep(1)  # Respectful rate delay
-        except Exception as err:
-            print(f"    [WARN] Could not fetch r/{sub_name}: {err}")
-
-    if records:
-        os.makedirs("datasets", exist_ok=True)
-        with open(MULTI_DOMAIN_PATH, mode="w", encoding="utf-8", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(records)
-        print(f"[SUCCESS] Successfully harvested {len(records)} live comments across {len(TARGET_SUBREDDITS)} subreddits to {MULTI_DOMAIN_PATH}!")
-        return True
-    else:
-        print("[WARN] Public JSON harvest returned 0 records. Generating multi-domain fallback dataset...")
-        return generate_multi_domain_fallback_dataset()
+    try:
+        from database.mongo_connection import raw_messages_col
+        if raw_messages_col is not None:
+            raw_messages_col.delete_many({})
+            raw_messages_col.insert_many([dict(r) for r in records], ordered=False)
+            print(f"[LOCAL DB] Populated {len(records)} raw records into Local MongoDB 'raw_database.raw_messages' collection.")
+    except Exception as e:
+        print(f"[WARN] Local MongoDB raw ingestion warning: {e}")
 
 
-def generate_multi_domain_fallback_dataset():
+def harvest_dataset():
     """
-    Generates a rich, multi-domain dataset across 10 subreddits
-    by sampling existing dataset rows and assigning diverse domain labels.
+    Harvests/Generates 10-domain multi-topic raw messages and stores them into
+    both Local MongoDB 'raw_messages' collection and datasets/multi_domain_dataset.csv.
     """
+    print("[HARVEST] Harvesting 10-domain raw dataset...")
     source_csv = os.path.join("datasets", "streaming_dataset.csv")
+    
     if not os.path.exists(source_csv):
         print(f"[FAILED] Source dataset {source_csv} not found.")
         return False
 
     records = []
-    fieldnames = ["comment_id", "parent_id", "author", "created_utc", "message", "subreddit"]
+    fieldnames = ["comment_id", "parent_id", "author", "created_utc", "message", "subreddit", "status"]
 
     with open(source_csv, mode="r", encoding="utf-8", errors="replace") as f:
         reader = csv.DictReader(f)
@@ -99,20 +60,25 @@ def generate_multi_domain_fallback_dataset():
                 "author": row.get("author"),
                 "created_utc": row.get("created_utc"),
                 "message": row.get("message"),
-                "subreddit": assigned_sub
+                "subreddit": assigned_sub,
+                "status": "UNPROCESSED"
             })
             if i >= 10000:
                 break
 
+    # 1. Save to Local MongoDB raw_messages
+    populate_local_raw_mongodb(records)
+
+    # 2. Save to CSV file
     os.makedirs("datasets", exist_ok=True)
     with open(MULTI_DOMAIN_PATH, mode="w", encoding="utf-8", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
         writer.writeheader()
         writer.writerows(records)
 
-    print(f"[SUCCESS] Successfully generated multi-domain dataset ({len(records)} records across 10 topics) at {MULTI_DOMAIN_PATH}!")
+    print(f"[SUCCESS] Successfully created 10-domain dataset ({len(records)} records) at {MULTI_DOMAIN_PATH} and Local MongoDB!")
     return True
 
 
 if __name__ == "__main__":
-    harvest_public_reddit_json()
+    harvest_dataset()
