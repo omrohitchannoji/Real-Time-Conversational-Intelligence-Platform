@@ -4,8 +4,12 @@ from dotenv import load_dotenv
 
 load_dotenv(override=True)
 
-# Cloud MongoDB Atlas Connection (Clean Source of Truth)
-CLOUD_MONGO_URI = os.getenv("MONGO_URI") or os.getenv("MONGODB_URI") or "mongodb://localhost:27017"
+# Cloud MongoDB Atlas Connection (Prioritizes MONGODB_URI or MONGO_ATLAS_URI from .env)
+CLOUD_MONGO_URI = (
+    os.getenv("MONGODB_URI") or 
+    os.getenv("MONGO_ATLAS_URI") or 
+    "mongodb+srv://omrohitchannoji7_db_user:NP8N1SBGSW9Q2XuA@context-modeling-cluste.maly4h1.mongodb.net"
+)
 DATABASE_NAME = os.getenv("DATABASE_NAME", "context-modeling")
 
 # Local MongoDB Connection (Raw Messages Landing Store)

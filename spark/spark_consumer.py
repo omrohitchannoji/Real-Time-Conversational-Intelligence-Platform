@@ -1,3 +1,4 @@
+import sys
 from spark.spark_session import create_spark_session
 from spark.kafka_reader import read_kafka_stream
 from spark.transformations import extract_message
@@ -23,7 +24,17 @@ def main():
     )
 
     print("[ACTIVE] Streaming engine active. Press Ctrl+C to terminate.")
-    query.awaitTermination()
+    
+    try:
+        query.awaitTermination()
+    except KeyboardInterrupt:
+        print("\n[STOP] PySpark Streaming Consumer stopped by user.")
+        try:
+            query.stop()
+            spark.stop()
+        except Exception:
+            pass
+        sys.exit(0)
 
 
 if __name__ == "__main__":
