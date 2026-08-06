@@ -27,6 +27,7 @@ except Exception as e:
     _global_llm_detector = None
 
 _topic_cache = {}  # Global in-memory exact hash topic cache for sub-millisecond deduplication
+_comment_author_map = {}  # Fast in-memory comment_id -> author mapping for parent author resolution
 
 
 def process_and_validate_record(record: dict) -> tuple[bool, dict | None, dict | None]:
@@ -34,8 +35,9 @@ def process_and_validate_record(record: dict) -> tuple[bool, dict | None, dict |
     Applies Consumer Validation (Layers 4, 5, 6 with Pydantic), Layer 7 Text Normalization,
     768D EmbeddingGemma Vector Generation, and Groq Llama-3.3-70B Human-Grade Topic Modeling.
     Uses pre-loaded global NLP models in RAM & MD5 Hash Caching for ultra-fast multi-threaded processing.
+    Resolves parent_author for Neo4j User-to-User interaction graph ingestion.
     """
-    global _topic_cache, _global_embedder, _global_llm_detector
+    global _topic_cache, _global_embedder, _global_llm_detector, _comment_author_map
 
     # 1. Pydantic validation (schema, datatypes, business bounds)
     is_valid, validated_dict, err_msg = validate_with_pydantic(record)
@@ -49,6 +51,19 @@ def process_and_validate_record(record: dict) -> tuple[bool, dict | None, dict |
     clean_record = dict(validated_dict)
     clean_record["message_raw"] = raw_msg
     clean_record["message"] = cleaned_msg
+
+    # Fast Parent Author Resolution for Neo4j Graph
+    comment_id = clean_record.get("comment_id", "")
+    author = clean_record.get("author", "")
+    parent_id = clean_record.get("parent_id", "")
+
+    if comment_id and author:
+        _comment_author_map[comment_id] = author
+        if len(_comment_author_map) > 20000:
+            _comment_author_map.clear()
+
+    parent_author = _comment_author_map.get(parent_id, clean_record.get("parent_author", "community_member"))
+    clean_record["parent_author"] = parent_author
 
     # 3. EmbeddingGemma 768D Vector + Groq LLM 70B Topic Classification
     vector_dim = 0

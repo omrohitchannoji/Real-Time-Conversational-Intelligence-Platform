@@ -19,10 +19,13 @@ from dashboard.analytics import (
     get_top_keywords,
     search_messages,
     get_channel_chat_messages,
-    get_dlq_logs
+    get_dlq_logs,
+    get_top_neo4j_influencers,
+    get_neo4j_community_summary
 )
 
 # Configure Streamlit Page
+
 st.set_page_config(
     page_title="Conversational Context Intelligence Platform",
     page_icon="🚀",
@@ -178,44 +181,46 @@ if selected_tab == "📊 Page 1: Executive KPI Overview & Trending":
     
     st.divider()
     
-    # Bottom Layout: Left Column = Subreddit Bar Chart, Right Column = Keywords Table
+    # Bottom Layout: Left Column = Groq LLM Topic Bar Chart, Right Column = Groq LLM Keywords Table
     chart_col, keywords_col = st.columns([3, 2])
     
     with chart_col:
-        st.subheader("🔥 Trending Channels (Message Volume by Subreddit)")
-        df_channel = get_channel_distribution()
+        st.subheader("🧠 Human-Grade Groq LLM Detected Topics")
+        from dashboard.analytics import get_groq_llm_topic_distribution, get_groq_llm_top_keywords
+        df_topics = get_groq_llm_topic_distribution(limit=10)
         fig = px.bar(
-            df_channel,
-            x="count",
-            y="channel",
+            df_topics,
+            x="Message Count",
+            y="Topic Category",
             orientation="h",
-            color="count",
-            color_continuous_scale="Viridis",
-            labels={"count": "Total Messages", "channel": "Subreddit Channel"},
-            text="count"
+            color="Message Count",
+            color_continuous_scale="Purples",
+            labels={"Message Count": "Enriched Documents", "Topic Category": "Groq LLM Detected Topic"},
+            text="Message Count"
         )
         fig.update_layout(
             template="plotly_dark",
             height=420,
-            xaxis_title="Message Count",
-            yaxis_title="Subreddit Channel",
+            xaxis_title="Messages Processed",
+            yaxis_title="LLM Topic Category",
             margin=dict(l=20, r=20, t=30, b=20)
         )
         st.plotly_chart(fig, width=500)
         
     with keywords_col:
-        st.subheader("🏷️ Top Extracted Keywords")
-        df_keywords = get_top_keywords(top_n=12)
+        st.subheader("🏷️ Groq LLM Context Keywords")
+        df_keywords = get_groq_llm_top_keywords(top_n=12)
         max_freq = int(df_keywords["Frequency"].max()) if not df_keywords.empty else 10
         st.dataframe(
             df_keywords,
             column_config={
-                "Keyword": "Extracted Keyword",
+                "Keyword": "Context Keyword",
                 "Frequency": st.column_config.ProgressColumn("Frequency", format="%d", min_value=0, max_value=max(max_freq, 1))
             },
             width=400,
             height=420
         )
+
 
 # ==============================================================================
 # TAB 2: LIVE MONITOR & WHATSAPP CHAT UI (Mentor's Page 2)
@@ -261,15 +266,26 @@ elif selected_tab == "💬 Page 2: Live WhatsApp Monitor UI":
             comment_id = msg.get("comment_id", "")
             parent_id = msg.get("parent_id", "")
             
+            # Extract Groq LLM Context Metadata
+            ctx = msg.get("context_modeling", {})
+            topic_name = ctx.get("detected_topic_name", "General Community Discussion")
+            keywords_list = ", ".join(ctx.get("topic_keywords", ["General"]))
+            intent_summary = ctx.get("summary_intent", "")
+            
             # Left side (Received reply) vs Right side (Sent / Primary post)
             is_reply = bool(parent_id and parent_id != "t3_none" and str(parent_id).strip() != "")
             
+            topic_badge = f'<div style="margin-top:6px; font-size:0.8rem; background:rgba(124,58,237,0.25); border:1px solid #A78BFA; border-radius:6px; padding:3px 8px; color:#E9D5FF;"><strong>🧠 LLM Topic:</strong> {topic_name} | <strong>🔑 Keywords:</strong> {keywords_list}</div>' if topic_name else ''
+            intent_badge = f'<div style="font-size:0.78rem; color:#CBD5E1; margin-top:2px;"><em>"{intent_summary}"</em></div>' if intent_summary else ''
+
             if is_reply:
                 # Left-aligned Received Chat Bubble
                 st.markdown(f"""
                 <div class="chat-bubble-received">
                     <strong>👤 {author}</strong> <span style="font-size:0.75rem; color:#38BDF8;">(Received Reply to #{parent_id})</span><br>
                     <span style="font-size: 1.05rem;">{text}</span>
+                    {topic_badge}
+                    {intent_badge}
                     <div class="chat-meta">🕒 {timestamp} | 🔑 Comment ID: {comment_id}</div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -279,10 +295,25 @@ elif selected_tab == "💬 Page 2: Live WhatsApp Monitor UI":
                 <div class="chat-bubble-sent">
                     <strong>👤 {author}</strong> <span style="font-size:0.75rem; color:#10B981;">(Primary Thread Starter)</span><br>
                     <span style="font-size: 1.05rem;">{text}</span>
+                    {topic_badge}
+                    {intent_badge}
                     <div class="chat-meta">🕒 {timestamp} | 🔑 Comment ID: {comment_id}</div>
                 </div>
                 """, unsafe_allow_html=True)
+
                 
+    st.divider()
+    st.subheader("🕸️ Neo4j Real-Time Graph Analytics & Influencer Centrality")
+    g_col1, g_col2 = st.columns([1, 1])
+    with g_col1:
+        st.markdown("#### 🌟 Top Influencers (PageRank & In-Degree)")
+        df_influencers = get_top_neo4j_influencers(limit=10)
+        st.dataframe(df_influencers, use_container_width=True)
+    with g_col2:
+        st.markdown("#### 👥 Community Detection Summary (Louvain)")
+        df_comm = get_neo4j_community_summary()
+        st.dataframe(df_comm, use_container_width=True)
+
     if auto_refresh:
         time.sleep(3)
         st.rerun()
@@ -290,6 +321,7 @@ elif selected_tab == "💬 Page 2: Live WhatsApp Monitor UI":
 # ==============================================================================
 # TAB 3: AI SENTIMENT & CONTEXT DISENTANGLEMENT (Interactive Feature)
 # ==============================================================================
+
 elif selected_tab == "🎯 Page 3: AI Sentiment & Context Disentanglement":
     st.header("🎯 AI Sentiment Distribution & Topic Disentanglement")
     st.markdown("Analyze tone, sentiment breakdown, and cross-channel conversational trends across all 10 subreddits.")
