@@ -1,0 +1,6 @@
+streamlit
+pandas
+pymongo
+plotly
+python-dotenv
+networkx
