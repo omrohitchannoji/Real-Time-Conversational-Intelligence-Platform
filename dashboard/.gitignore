@@ -1,0 +1,11 @@
+# Environment variables & secrets
+.env
+
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+
+# IDE / OS settings
+.vscode/
+.DS_Store
