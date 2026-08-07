@@ -46,6 +46,7 @@ def _sync_to_neo4j_async(valid_records: list[dict]):
         topic = ctx.get("detected_topic_name", "General Inquiries")
 
         if author_a:
+            sim_val = float(doc.get("semantic_similarity_score", 0.50))
             neo4j_interactions.append({
                 "author_a": author_a,
                 "author_b": author_b if author_b else "community_member",
@@ -53,9 +54,10 @@ def _sync_to_neo4j_async(valid_records: list[dict]):
                 "parent_id": parent_id,
                 "timestamp": timestamp,
                 "sentiment_score": 0.0,
-                "relationship_score": 50.0,
+                "relationship_score": round(sim_val * 100.0, 2),
                 "topic": topic
             })
+
 
     if neo4j_interactions:
         try:

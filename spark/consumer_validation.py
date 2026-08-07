@@ -70,14 +70,24 @@ def process_and_validate_record(record: dict) -> tuple[bool, dict | None, dict |
     topic_name = "General Inquiries"
     keywords = ["General"]
     intent = cleaned_msg[:60]
+    sim_score = 0.50
 
     # Vector Embedding using global pre-loaded model
     if _global_embedder is not None:
         try:
             vec = _global_embedder.get_embedding(cleaned_msg)
             vector_dim = len(vec)
+            
+            parent_msg = validated_dict.get("parent_message", "")
+            if parent_msg and str(parent_msg).strip() and str(parent_msg).strip().lower() != "nan":
+                from nlp.embeddings import compute_cosine_similarity
+                parent_vec = _global_embedder.get_embedding(clean_text(str(parent_msg), to_lower=True))
+                sim_score = float(compute_cosine_similarity(vec, parent_vec))
         except Exception as e:
             pass
+
+    clean_record["semantic_similarity_score"] = round(sim_score, 4)
+
 
     # Exact MD5 Hash Cache Lookup (Guarantees 100% Precision, 0 False Positives)
     cache_key = hashlib.md5(cleaned_msg.encode('utf-8')).hexdigest()
