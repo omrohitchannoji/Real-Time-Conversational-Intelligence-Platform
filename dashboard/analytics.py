@@ -373,7 +373,7 @@ def generate_social_interaction_graph_html(limit=35) -> str:
         "nodes": {
             "font": {
                 "color": "#F8FAFC",
-                "size": 20,
+                "size": 16,
                 "face": "Arial"
             },
             "borderWidth": 1.5,
@@ -382,8 +382,8 @@ def generate_social_interaction_graph_html(limit=35) -> str:
         },
         "edges": {
             "font": {
-                "color": "#FFFFFF",
-                "size": 14,
+                "color": "#CBD5E1",
+                "size": 9,
                 "face": "Arial",
                 "align": "horizontal"
             },
@@ -494,7 +494,7 @@ def generate_user_topic_bipartite_graph_html(limit=35) -> str:
         "nodes": {
             "font": {
                 "color": "#F8FAFC",
-                "size": 18,
+                "size": 15,
                 "face": "Arial"
             },
             "borderWidth": 1.5,
@@ -502,8 +502,8 @@ def generate_user_topic_bipartite_graph_html(limit=35) -> str:
         },
         "edges": {
             "font": {
-                "color": "#FFFFFF",
-                "size": 13,
+                "color": "#FDBA74",
+                "size": 9,
                 "face": "Arial",
                 "align": "horizontal"
             },
@@ -610,7 +610,7 @@ def generate_community_cluster_graph_html(limit=35) -> str:
         "nodes": {
             "font": {
                 "color": "#F8FAFC",
-                "size": 20,
+                "size": 16,
                 "face": "Arial"
             },
             "borderWidth": 1.5,
@@ -619,8 +619,8 @@ def generate_community_cluster_graph_html(limit=35) -> str:
         },
         "edges": {
             "font": {
-                "color": "#FFFFFF",
-                "size": 14,
+                "color": "#CBD5E1",
+                "size": 9,
                 "face": "Arial",
                 "align": "horizontal"
             },
