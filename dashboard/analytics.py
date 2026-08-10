@@ -7,9 +7,31 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 from database.mongo_connection import messages_col, validation_errors_col
-import pandas as pd
-from collections import Counter
-import re
+STOPWORDS = {
+    "a", "about", "above", "after", "again", "against", "all", "am", "an", "and", "any", "are", "aren't", 
+    "as", "at", "be", "because", "been", "before", "being", "below", "between", "both", "but", "by", 
+    "can", "can't", "cannot", "could", "couldn't", "did", "didn't", "do", "does", "doesn't", "doing", 
+    "don't", "down", "during", "each", "few", "for", "from", "further", "had", "hadn't", "has", "hasn't", 
+    "have", "haven't", "having", "he", "he'd", "he'll", "he's", "her", "here", "here's", "hers", "herself", 
+    "him", "himself", "his", "how", "how's", "i", "i'd", "i'll", "i'm", "i've", "if", "in", "into", "is", 
+    "isn't", "it", "it's", "its", "itself", "let's", "me", "more", "most", "mustn't", "my", "myself", 
+    "no", "nor", "not", "of", "off", "on", "once", "only", "or", "other", "ought", "our", "ours", "ourselves", 
+    "out", "over", "own", "same", "shan't", "she", "she'd", "she'll", "she's", "should", "shouldn't", "so", 
+    "some", "such", "than", "that", "that's", "thats", "the", "their", "theirs", "them", "themselves", 
+    "then", "there", "there's", "these", "they", "they'd", "they'll", "they're", "they've", 
+    "this", "those", "through", "to", "too", "under", "until", "up", "very", "was", "wasn't", "we", 
+    "we'd", "we'll", "we're", "we've", "were", "weren't", "what", "what's", "whatever", "when", "when's", 
+    "where", "where's", "which", "while", "who", "who's", "whom", "why", "why's", "with", "won't", "would", 
+    "wouldn't", "you", "you'd", "you'll", "you're", "you've", "your", "yours", "yourself", "yourselves",
+    "think", "thinking", "thought", "thoughts", "also", "just", "like", "even", "thing", "things",
+    "really", "going", "know", "much", "many", "make", "made", "get", "got", "getting", "people", 
+    "general", "message", "unknown", "something", "anything", "nothing", "someone", "anyone",
+    "always", "never", "still", "well", "way", "need", "want", "take", "come", "goes", "look", 
+    "good", "bad", "say", "says", "said", "post", "posts", "comment", "comments", "reddit", "user",
+    "doesnt", "didnt", "isnt", "arent", "wasnt", "werent", "havent", "hasnt", "hadnt", "wont",
+    "wouldnt", "couldnt", "shouldnt", "cant", "dont", "youre", "theyre", "theres", "thats",
+    "whats", "hes", "shes", "ive", "ill", "id", "youve", "youll", "youd"
+}
 
 
 def get_pipeline_kpis():
@@ -122,7 +144,8 @@ def get_groq_llm_topic_distribution(limit=10):
 
 def get_groq_llm_top_keywords(top_n=12):
     """
-    Extracts Groq LLM Context Keywords (context_modeling.topic_keywords) from MongoDB Atlas Cloud.
+    Extracts Groq LLM Context Keywords (context_modeling.topic_keywords) from MongoDB Atlas Cloud,
+    automatically filtering out generic stop words and punctuation for clean insight display.
     """
     try:
         cursor = messages_col.find(
@@ -133,7 +156,11 @@ def get_groq_llm_top_keywords(top_n=12):
         for doc in cursor:
             kws = doc.get("context_modeling", {}).get("topic_keywords", [])
             if isinstance(kws, list):
-                keywords.extend([str(k).title() for k in kws if k and len(str(k)) > 2])
+                for k in kws:
+                    k_str = str(k).strip()
+                    cleaned_k = re.sub(r'[^\w\s]', '', k_str).lower().strip()
+                    if k_str and len(k_str) > 2 and cleaned_k not in STOPWORDS:
+                        keywords.append(k_str.title())
         if keywords:
             counter = Counter(keywords)
             most_common = counter.most_common(top_n)
