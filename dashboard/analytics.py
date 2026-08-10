@@ -373,7 +373,7 @@ def generate_social_interaction_graph_html(limit=35) -> str:
         "nodes": {
             "font": {
                 "color": "#F8FAFC",
-                "size": 16,
+                "size": 15,
                 "face": "Arial"
             },
             "borderWidth": 1.5,
@@ -383,7 +383,7 @@ def generate_social_interaction_graph_html(limit=35) -> str:
         "edges": {
             "font": {
                 "color": "#CBD5E1",
-                "size": 9,
+                "size": 7,
                 "face": "Arial",
                 "align": "horizontal"
             },
@@ -394,7 +394,7 @@ def generate_social_interaction_graph_html(limit=35) -> str:
             "arrows": {
                 "to": {
                     "enabled": True,
-                    "scaleFactor": 0.65
+                    "scaleFactor": 0.6
                 }
             },
             "selectionWidth": 1.5
@@ -494,7 +494,7 @@ def generate_user_topic_bipartite_graph_html(limit=35) -> str:
         "nodes": {
             "font": {
                 "color": "#F8FAFC",
-                "size": 15,
+                "size": 14,
                 "face": "Arial"
             },
             "borderWidth": 1.5,
@@ -503,7 +503,7 @@ def generate_user_topic_bipartite_graph_html(limit=35) -> str:
         "edges": {
             "font": {
                 "color": "#FDBA74",
-                "size": 9,
+                "size": 7,
                 "face": "Arial",
                 "align": "horizontal"
             },
@@ -610,7 +610,7 @@ def generate_community_cluster_graph_html(limit=35) -> str:
         "nodes": {
             "font": {
                 "color": "#F8FAFC",
-                "size": 16,
+                "size": 15,
                 "face": "Arial"
             },
             "borderWidth": 1.5,
@@ -620,7 +620,7 @@ def generate_community_cluster_graph_html(limit=35) -> str:
         "edges": {
             "font": {
                 "color": "#CBD5E1",
-                "size": 9,
+                "size": 7,
                 "face": "Arial",
                 "align": "horizontal"
             },
@@ -631,7 +631,7 @@ def generate_community_cluster_graph_html(limit=35) -> str:
             "arrows": {
                 "to": {
                     "enabled": True,
-                    "scaleFactor": 0.65
+                    "scaleFactor": 0.6
                 }
             },
             "selectionWidth": 1.5
