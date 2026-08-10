@@ -16,6 +16,7 @@ def get_pipeline_kpis():
     """
     Returns high-level pipeline KPIs.
     """
+    
     try:
         total_messages = int(messages_col.count_documents({}))
         subreddits = int(len(messages_col.distinct("source")))
@@ -340,16 +341,81 @@ def get_neo4j_community_summary():
     return pd.DataFrame([{"community_id": 1, "member_count": 128, "top_members": ["user1", "user2"]}])
 
 
+def get_clean_user_label(raw: str, user_map: dict) -> str:
+    """
+    Converts raw alphanumeric user IDs (e.g. u_384729, t3_a1b2, user_8492019)
+    into clean, human-meaningful labels like User 1, User 2, User 3, etc.
+    """
+    if not raw or str(raw).strip() in ["nan", "None", "system", ""]:
+        return "System"
+    
+    val = str(raw).strip()
+    if val in user_map:
+        return user_map[val]
+    
+    idx = len(user_map) + 1
+    label = f"User {idx}"
+    user_map[val] = label
+    return label
+
+
 def generate_social_interaction_graph_html(limit=35) -> str:
     """
     Generates an interactive 2D physics force-directed graph (Vis.js/PyVis)
-    showing User-to-User reply dynamics and influence weights.
+    matching the reference style: Sage Green User nodes (#8CBE70), edge label 'replied to'.
     """
     from pyvis.network import Network
     import json
 
     net = Network(height="480px", width="100%", bgcolor="#0F172A", font_color="#F8FAFC", directed=True)
-    net.barnes_hut(gravity=-3000, central_gravity=0.3, spring_length=120, spring_strength=0.05, damping=0.95)
+    
+    vis_options = {
+        "nodes": {
+            "font": {
+                "color": "#F8FAFC",
+                "size": 20,
+                "face": "Arial"
+            },
+            "borderWidth": 1.5,
+            "borderColor": "#6E9956",
+            "shadow": True
+        },
+        "edges": {
+            "font": {
+                "color": "#FFFFFF",
+                "size": 14,
+                "face": "Arial",
+                "align": "horizontal"
+            },
+            "smooth": {
+                "type": "continuous",
+                "roundness": 0.2
+            },
+            "arrows": {
+                "to": {
+                    "enabled": True,
+                    "scaleFactor": 0.65
+                }
+            },
+            "selectionWidth": 1.5
+        },
+        "physics": {
+            "solver": "forceAtlas2Based",
+            "forceAtlas2Based": {
+                "gravitationalConstant": -50,
+                "centralGravity": 0.01,
+                "springLength": 110,
+                "springConstant": 0.08
+            },
+            "stabilization": {"enabled": True, "iterations": 150}
+        },
+        "interaction": {
+            "hover": True,
+            "zoomView": True,
+            "dragNodes": True
+        }
+    }
+    net.set_options(json.dumps(vis_options))
 
     interactions = []
     try:
@@ -369,41 +435,47 @@ def generate_social_interaction_graph_html(limit=35) -> str:
         pass
 
     if not interactions:
-        # Fallback to recent MongoDB interactions
-        cursor = messages_col.find({"parent_author": {"$exists": True, "$ne": "system"}}, 
-                                   {"author": 1, "parent_author": 1, "created_utc": 1, "context_modeling": 1}).limit(limit)
-        for doc in cursor:
-            a1 = doc.get("author", "")
-            a2 = doc.get("parent_author", "")
-            if a1 and a2 and a1 != a2:
-                interactions.append({"source": a1, "target": a2, "weight": 2, "score": 75.0})
+        try:
+            if messages_col is not None:
+                cursor = messages_col.find({"parent_author": {"$exists": True, "$ne": "system"}}, 
+                                           {"author": 1, "parent_author": 1, "created_utc": 1, "context_modeling": 1}).limit(limit)
+                for doc in cursor:
+                    a1 = doc.get("author", "")
+                    a2 = doc.get("parent_author", "")
+                    if a1 and a2 and a1 != a2:
+                        interactions.append({"source": a1, "target": a2, "weight": 2, "score": 75.0})
+        except Exception as e:
+            print(f"[WARN] Mongo fallback notice: {e}")
 
     if not interactions:
-        # Default mock demo nodes
         interactions = [
-            {"source": "tech_guru", "target": "code_dev", "weight": 3, "score": 85.0},
-            {"source": "code_dev", "target": "aviation_fan", "weight": 2, "score": 70.0},
-            {"source": "legal_expert", "target": "investor_99", "weight": 4, "score": 90.0},
-            {"source": "data_coder", "target": "tech_guru", "weight": 2, "score": 65.0},
-            {"source": "aviation_student", "target": "pilot_pro", "weight": 5, "score": 95.0}
+            {"source": "user_alpha_99", "target": "user_beta_88", "weight": 3, "score": 85.0},
+            {"source": "user_beta_88", "target": "user_gamma_77", "weight": 2, "score": 70.0},
+            {"source": "user_delta_66", "target": "user_epsilon_55", "weight": 4, "score": 90.0},
+            {"source": "user_zeta_44", "target": "user_alpha_99", "weight": 2, "score": 65.0},
+            {"source": "user_eta_33", "target": "user_theta_22", "weight": 5, "score": 95.0}
         ]
 
-    users = set()
-    for item in interactions:
-        s, t = item["source"], item["target"]
-        users.add(s)
-        users.add(t)
+    # Map raw alphanumeric usernames to clean User 1, User 2, User 3...
+    user_map = {}
+    users_raw = list(set([i["source"] for i in interactions] + [i["target"] for i in interactions]))
+    users_raw.sort()
+    for u in users_raw:
+        get_clean_user_label(u, user_map)
 
-    for u in users:
+    for u in users_raw:
+        clean_label = user_map[u]
         is_influencer = len([i for i in interactions if i["target"] == u]) >= 2
-        color = "#38BDF8" if not is_influencer else "#F59E0B"
-        size = 22 if is_influencer else 15
-        net.add_node(u, label=f"👤 {u}", title=f"User: {u}\nStatus: {'Influencer' if is_influencer else 'Contributor'}", 
+        # Sage green color for User nodes (#8CBE70)
+        color = "#8CBE70" if not is_influencer else "#7AA95E"
+        size = 20 if is_influencer else 15
+        net.add_node(u, label=f"👤 {clean_label}", title=f"User: {clean_label} ({u})\nRole: {'Influencer' if is_influencer else 'Contributor'}", 
                      color=color, size=size, shape="dot")
 
     for item in interactions:
+        score_val = item.get('score', 50)
         net.add_edge(item["source"], item["target"], value=item.get("weight", 1), 
-                     title=f"Interaction Score: {item.get('score', 50)}%", color="#64748B", arrowStrikethrough=False)
+                     label="replied to", title=f"Interaction Score: {score_val}%", color="#64748B")
 
     return net.generate_html()
 
@@ -411,11 +483,53 @@ def generate_social_interaction_graph_html(limit=35) -> str:
 def generate_user_topic_bipartite_graph_html(limit=35) -> str:
     """
     Generates an interactive 2D User-to-Topic Bipartite graph.
-    Topic nodes are purple hexagons, user nodes are green circles.
+    Sage Green User nodes (#8CBE70), Orange Topic nodes (#F97316), edge label 'participated in'.
     """
     from pyvis.network import Network
+    import json
+
     net = Network(height="480px", width="100%", bgcolor="#0F172A", font_color="#F8FAFC", directed=False)
-    net.barnes_hut(gravity=-2500, central_gravity=0.4, spring_length=140, spring_strength=0.05, damping=0.95)
+    
+    vis_options = {
+        "nodes": {
+            "font": {
+                "color": "#F8FAFC",
+                "size": 18,
+                "face": "Arial"
+            },
+            "borderWidth": 1.5,
+            "shadow": True
+        },
+        "edges": {
+            "font": {
+                "color": "#FFFFFF",
+                "size": 13,
+                "face": "Arial",
+                "align": "horizontal"
+            },
+            "smooth": {
+                "type": "continuous",
+                "roundness": 0.2
+            },
+            "selectionWidth": 1.5
+        },
+        "physics": {
+            "solver": "forceAtlas2Based",
+            "forceAtlas2Based": {
+                "gravitationalConstant": -40,
+                "centralGravity": 0.01,
+                "springLength": 130,
+                "springConstant": 0.07
+            },
+            "stabilization": {"enabled": True, "iterations": 150}
+        },
+        "interaction": {
+            "hover": True,
+            "zoomView": True,
+            "dragNodes": True
+        }
+    }
+    net.set_options(json.dumps(vis_options))
 
     topic_data = []
     try:
@@ -434,48 +548,111 @@ def generate_user_topic_bipartite_graph_html(limit=35) -> str:
         pass
 
     if not topic_data:
-        cursor = messages_col.find({"context_modeling.detected_topic_name": {"$exists": True}},
-                                   {"author": 1, "context_modeling.detected_topic_name": 1}).limit(limit)
-        for doc in cursor:
-            author = doc.get("author")
-            topic = doc.get("context_modeling", {}).get("detected_topic_name")
-            if author and topic:
-                topic_data.append({"user": author, "topic": topic, "count": 1})
+        try:
+            if messages_col is not None:
+                cursor = messages_col.find({"context_modeling.detected_topic_name": {"$exists": True}},
+                                           {"author": 1, "context_modeling.detected_topic_name": 1}).limit(limit)
+                for doc in cursor:
+                    author = doc.get("author")
+                    topic = doc.get("context_modeling", {}).get("detected_topic_name")
+                    if author and topic:
+                        topic_data.append({"user": author, "topic": topic, "count": 1})
+        except Exception as e:
+            print(f"[WARN] Topic data Mongo notice: {e}")
 
     if not topic_data:
         topic_data = [
-            {"user": "pilot_pro", "topic": "Career & Aviation Inquiries", "count": 3},
-            {"user": "aviation_student", "topic": "Career & Aviation Inquiries", "count": 2},
-            {"user": "law_counsel", "topic": "Legal & Inheritance Advice", "count": 4},
-            {"user": "investor_99", "topic": "Legal & Inheritance Advice", "count": 2},
-            {"user": "gpu_dev", "topic": "AI Hardware & GPUs", "count": 5},
-            {"user": "tech_guru", "topic": "AI Hardware & GPUs", "count": 3}
+            {"user": "user_a1", "topic": "Career & Aviation Inquiries", "count": 3},
+            {"user": "user_b2", "topic": "Career & Aviation Inquiries", "count": 2},
+            {"user": "user_c3", "topic": "Legal & Inheritance Advice", "count": 4},
+            {"user": "user_d4", "topic": "Legal & Inheritance Advice", "count": 2},
+            {"user": "user_e5", "topic": "AI Hardware & GPUs", "count": 5},
+            {"user": "user_f6", "topic": "AI Hardware & GPUs", "count": 3}
         ]
 
     topics = set(d["topic"] for d in topic_data)
-    users = set(d["user"] for d in topic_data)
+    users_raw = list(set(d["user"] for d in topic_data))
+    users_raw.sort()
 
+    user_map = {}
+    for u in users_raw:
+        get_clean_user_label(u, user_map)
+
+    # Orange Topic Nodes (#F97316)
     for t in topics:
-        net.add_node(t, label=f"🧠 {t[:20]}..", title=f"Groq LLM Topic: {t}", color="#8B5CF6", size=26, shape="hexagon")
+        clean_topic = str(t).strip()
+        net.add_node(t, label=f"🧠 {clean_topic[:20]}..", title=f"Groq LLM Topic: {clean_topic}", 
+                     color="#F97316", size=25, shape="hexagon")
 
-    for u in users:
-        net.add_node(u, label=f"👤 {u}", title=f"User: {u}", color="#10B981", size=14, shape="dot")
+    # Sage Green User Nodes (#8CBE70)
+    for u in users_raw:
+        clean_label = user_map[u]
+        net.add_node(u, label=f"👤 {clean_label}", title=f"User: {clean_label} ({u})", 
+                     color="#8CBE70", size=15, shape="dot")
 
     for d in topic_data:
-        net.add_edge(d["user"], d["topic"], value=d.get("count", 1), color="#A78BFA", dashes=True)
+        net.add_edge(d["user"], d["topic"], value=d.get("count", 1), label="participated in", color="#FB923C")
 
     return net.generate_html()
 
 
 def generate_community_cluster_graph_html(limit=35) -> str:
     """
-    Generates a color-coded Louvain community cluster graph.
+    Generates an interactive 2D physics User-to-User interaction graph.
+    Sage Green User nodes (#8CBE70), edge label 'interacted with'.
     """
     from pyvis.network import Network
-    net = Network(height="480px", width="100%", bgcolor="#0F172A", font_color="#F8FAFC", directed=False)
-    net.barnes_hut(gravity=-3000, central_gravity=0.3, spring_length=110, spring_strength=0.06, damping=0.95)
+    import json
 
-    palette = ["#EC4899", "#3B82F6", "#10B981", "#F59E0B", "#8B5CF6", "#06B6D4"]
+    net = Network(height="480px", width="100%", bgcolor="#0F172A", font_color="#F8FAFC", directed=True)
+    
+    vis_options = {
+        "nodes": {
+            "font": {
+                "color": "#F8FAFC",
+                "size": 20,
+                "face": "Arial"
+            },
+            "borderWidth": 1.5,
+            "borderColor": "#6E9956",
+            "shadow": True
+        },
+        "edges": {
+            "font": {
+                "color": "#FFFFFF",
+                "size": 14,
+                "face": "Arial",
+                "align": "horizontal"
+            },
+            "smooth": {
+                "type": "continuous",
+                "roundness": 0.2
+            },
+            "arrows": {
+                "to": {
+                    "enabled": True,
+                    "scaleFactor": 0.65
+                }
+            },
+            "selectionWidth": 1.5
+        },
+        "physics": {
+            "solver": "forceAtlas2Based",
+            "forceAtlas2Based": {
+                "gravitationalConstant": -50,
+                "centralGravity": 0.01,
+                "springLength": 110,
+                "springConstant": 0.08
+            },
+            "stabilization": {"enabled": True, "iterations": 150}
+        },
+        "interaction": {
+            "hover": True,
+            "zoomView": True,
+            "dragNodes": True
+        }
+    }
+    net.set_options(json.dumps(vis_options))
 
     interactions = []
     try:
@@ -484,8 +661,9 @@ def generate_community_cluster_graph_html(limit=35) -> str:
         if writer.connect():
             with writer._driver.session(database=writer.database) as session:
                 res = session.run("""
-                    MATCH (u1:User)-[r:INTERACTED_WITH]-(u2:User)
-                    RETURN u1.username AS source, u2.username AS target, coalesce(u1.community_id, 0) AS comm1, coalesce(u2.community_id, 0) AS comm2
+                    MATCH (u1:User)-[r:INTERACTED_WITH]->(u2:User)
+                    RETURN u1.username AS source, u2.username AS target, 
+                           coalesce(r.weight, 1) AS weight, coalesce(r.relationship_score, 50.0) AS score
                     LIMIT $limit
                 """, limit=limit)
                 interactions = [dict(record) for record in res]
@@ -495,21 +673,28 @@ def generate_community_cluster_graph_html(limit=35) -> str:
 
     if not interactions:
         interactions = [
-            {"source": "alex_tech", "target": "sarah_ai", "comm1": 0, "comm2": 0},
-            {"source": "sarah_ai", "target": "mike_gpu", "comm1": 0, "comm2": 0},
-            {"source": "rahul_law", "target": "priya_tax", "comm1": 1, "comm2": 1},
-            {"source": "priya_tax", "target": "amit_estate", "comm1": 1, "comm2": 1},
-            {"source": "john_aero", "target": "david_atc", "comm1": 2, "comm2": 2},
-            {"source": "david_atc", "target": "alex_tech", "comm1": 2, "comm2": 0}
+            {"source": "alex_tech", "target": "sarah_ai", "weight": 2, "score": 80.0},
+            {"source": "sarah_ai", "target": "mike_gpu", "weight": 3, "score": 88.0},
+            {"source": "rahul_law", "target": "priya_tax", "weight": 1, "score": 60.0},
+            {"source": "priya_tax", "target": "amit_estate", "weight": 2, "score": 75.0},
+            {"source": "john_aero", "target": "david_atc", "weight": 4, "score": 92.0},
+            {"source": "david_atc", "target": "alex_tech", "weight": 1, "score": 65.0}
         ]
 
+    users_raw = list(set([i["source"] for i in interactions] + [i["target"] for i in interactions]))
+    users_raw.sort()
+
+    user_map = {}
+    for u in users_raw:
+        get_clean_user_label(u, user_map)
+
+    # Sage Green color scheme for user nodes matching reference image
+    for u in users_raw:
+        clean_label = user_map[u]
+        net.add_node(u, label=f"👤 {clean_label}", title=f"User: {clean_label} ({u})", color="#8CBE70", size=16, shape="dot")
+
     for item in interactions:
-        s, t = item["source"], item["target"]
-        c1 = palette[item.get("comm1", 0) % len(palette)]
-        c2 = palette[item.get("comm2", 0) % len(palette)]
-        
-        net.add_node(s, label=f"👤 {s}", title=f"User: {s}\nCommunity ID: {item.get('comm1', 0)}", color=c1, size=18, shape="dot")
-        net.add_node(t, label=f"👤 {t}", title=f"User: {t}\nCommunity ID: {item.get('comm2', 0)}", color=c2, size=18, shape="dot")
-        net.add_edge(s, t, color="#475569")
+        net.add_edge(item["source"], item["target"], value=item.get("weight", 1), 
+                     label="interacted with", title=f"Interaction Score: {item.get('score', 50)}%", color="#64748B")
 
     return net.generate_html()

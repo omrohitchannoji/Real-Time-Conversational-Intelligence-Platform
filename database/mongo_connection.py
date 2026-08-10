@@ -16,16 +16,31 @@ DATABASE_NAME = os.getenv("DATABASE_NAME", "context-modeling")
 LOCAL_MONGO_URI = os.getenv("LOCAL_MONGO_URI", "mongodb://localhost:27017")
 LOCAL_RAW_DB_NAME = "raw_database"
 
-# Initialize Atlas Cloud Client
-atlas_client = MongoClient(CLOUD_MONGO_URI)
-atlas_db = atlas_client[DATABASE_NAME]
-
-# Atlas Collections
-messages_col = atlas_db["messages"]
-validation_errors_col = atlas_db["validation_errors"]
-embeddings_col = atlas_db["embeddings"]
-contexts_col = atlas_db["contexts"]
-relationships_col = atlas_db["relationships"]
+# Initialize Atlas Cloud Client (with timeout fallback for resilient network performance)
+try:
+    atlas_client = MongoClient(CLOUD_MONGO_URI, serverSelectionTimeoutMS=3000, connectTimeoutMS=3000)
+    atlas_db = atlas_client[DATABASE_NAME]
+    messages_col = atlas_db["messages"]
+    validation_errors_col = atlas_db["validation_errors"]
+    embeddings_col = atlas_db["embeddings"]
+    contexts_col = atlas_db["contexts"]
+    relationships_col = atlas_db["relationships"]
+except Exception as e:
+    print(f"[MONGO WARN] Atlas Cloud MongoDB connection note: {e}. Falling back to local MongoDB datastore.")
+    try:
+        local_fallback_client = MongoClient(LOCAL_MONGO_URI, serverSelectionTimeoutMS=2000)
+        local_fallback_db = local_fallback_client["raw_database"]
+        messages_col = local_fallback_db["raw_messages"]
+        validation_errors_col = local_fallback_db["validation_errors"]
+        embeddings_col = local_fallback_db["embeddings"]
+        contexts_col = local_fallback_db["contexts"]
+        relationships_col = local_fallback_db["relationships"]
+    except Exception:
+        messages_col = None
+        validation_errors_col = None
+        embeddings_col = None
+        contexts_col = None
+        relationships_col = None
 
 # Initialize Local MongoDB Client (Raw Storage)
 try:

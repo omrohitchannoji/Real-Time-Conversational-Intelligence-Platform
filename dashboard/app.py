@@ -517,7 +517,7 @@ elif selected_tab == "🕸️  Graph Intelligence":
 
     graph_tab1, graph_tab2, graph_tab3 = st.tabs([
         "💬 COMMENTED_ON / REPLIED_TO (User Reply Graph)",
-        "🤝 INTERACTED_WITH (Social Influence & Louvain Communities)",
+        "🤝 INTERACTED_WITH (User Interaction & Social Influence Graph)",
         "🏷️ PARTICIPATED_IN (User-to-Topic Knowledge Bipartite Graph)"
     ])
 
@@ -527,7 +527,7 @@ elif selected_tab == "🕸️  Graph Intelligence":
         components.html(html_social, height=520, scrolling=False)
 
     with graph_tab2:
-        st.markdown("**`[:INTERACTED_WITH]` Louvain Community Clusters** *(Color-coded sub-communities & mutual conversation bridges)*")
+        st.markdown("**`[:INTERACTED_WITH]` Mutual Interaction Graph** *(Direct user-to-user conversation links)*")
         html_comm = generate_community_cluster_graph_html(limit=node_limit)
         components.html(html_comm, height=520, scrolling=False)
 

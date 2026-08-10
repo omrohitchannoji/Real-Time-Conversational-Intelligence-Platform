@@ -1,4 +1,10 @@
 import os
+import sys
+
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
 import numpy as np
 import pandas as pd
 from nlp.embeddings import EmbeddingGemmaEmbedder, compute_cosine_similarity
@@ -86,6 +92,34 @@ class RelationshipInferencer:
         grouped["interaction_weight"] = (grouped["reply_count"] * (1.0 + grouped["avg_semantic_similarity"])).round(4)
 
         return grouped.sort_values(by="interaction_weight", ascending=False)
+
+
+class RelationshipInferenceEngine:
+    """
+    Graph-based Relationship Inference Engine wrapping UserInteractionGraphBuilder.
+    """
+    def __init__(self, builder=None):
+        self.builder = builder
+        self.inferencer = RelationshipInferencer()
+
+    def detect_co_participation(self) -> list[dict]:
+        """Detects co-participation threads in user interaction graph."""
+        if not self.builder or not self.builder.graph:
+            return []
+        co_parts = []
+        for u, v in self.builder.graph.edges():
+            co_parts.append({"user_a": u, "user_b": v, "co_participation_count": self.builder.graph[u][v].get("weight", 1)})
+        return co_parts
+
+    def find_reciprocal_pairs(self) -> list[tuple]:
+        """Detects reciprocal communication pairs in graph."""
+        if not self.builder or not self.builder.graph:
+            return []
+        recip = []
+        for u, v in self.builder.graph.edges():
+            if self.builder.graph.has_edge(v, u) and u < v:
+                recip.append((u, v))
+        return recip
 
 
 if __name__ == "__main__":
