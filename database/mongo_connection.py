@@ -4,6 +4,16 @@ from dotenv import load_dotenv
 
 load_dotenv(override=True)
 
+# Configure dnspython to use Google and Cloudflare DNS to avoid local router DNS timeouts
+try:
+    import dns.resolver
+    dns.resolver.default_resolver = dns.resolver.Resolver(configure=False)
+    dns.resolver.default_resolver.nameservers = ['8.8.8.8', '1.1.1.1', '8.8.4.4']
+    dns.resolver.default_resolver.timeout = 8.0
+    dns.resolver.default_resolver.lifetime = 8.0
+except Exception:
+    pass
+
 # Cloud MongoDB Atlas Connection (Prioritizes MONGODB_URI or MONGO_ATLAS_URI from .env)
 CLOUD_MONGO_URI = (
     os.getenv("MONGODB_URI") or 
@@ -18,7 +28,7 @@ LOCAL_RAW_DB_NAME = "raw_database"
 
 # Initialize Atlas Cloud Client (with timeout fallback for resilient network performance)
 try:
-    atlas_client = MongoClient(CLOUD_MONGO_URI, serverSelectionTimeoutMS=3000, connectTimeoutMS=3000)
+    atlas_client = MongoClient(CLOUD_MONGO_URI, serverSelectionTimeoutMS=8000, connectTimeoutMS=8000)
     atlas_db = atlas_client[DATABASE_NAME]
     messages_col = atlas_db["messages"]
     validation_errors_col = atlas_db["validation_errors"]

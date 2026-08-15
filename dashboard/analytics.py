@@ -7,6 +7,10 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 from database.mongo_connection import messages_col, validation_errors_col
+import pandas as pd
+from collections import Counter
+import re
+
 STOPWORDS = {
     "a", "about", "above", "after", "again", "against", "all", "am", "an", "and", "any", "are", "aren't", 
     "as", "at", "be", "because", "been", "before", "being", "below", "between", "both", "but", "by", 
