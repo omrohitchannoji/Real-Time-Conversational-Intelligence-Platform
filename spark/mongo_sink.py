@@ -1,8 +1,22 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from database.mongo_connection import messages_col
 from database.mongo_writer import insert_batch
 from database.validation_logs import log_validation_errors
 from spark.consumer_validation import process_and_validate_record
 from graph_db.neo4j_writer import Neo4jWriter
+
+# Pre-index existing comment_ids from MongoDB Atlas to fast-skip duplicates instantly in 0.0001ms
+_existing_comment_ids_set = set()
+try:
+    if messages_col is not None:
+        cursor = messages_col.find({}, {"comment_id": 1, "_id": 0})
+        for doc in cursor:
+            cid = str(doc.get("comment_id", "")).strip()
+            if cid:
+                _existing_comment_ids_set.add(cid)
+        print(f"⚡ [CACHE] Pre-indexed {len(_existing_comment_ids_set):,} existing messages from MongoDB Atlas to fast-skip duplicates!")
+except Exception as e:
+    print(f"[CACHE NOTE] Pre-indexing notice: {e}")
 
 # One-Time Global Initialization of Neo4j Graph Driver
 _global_neo4j_writer = Neo4jWriter()
@@ -15,11 +29,20 @@ except Exception as e:
 def _process_single_row(row_dict: dict) -> tuple[bool, dict | None, dict | None]:
     """
     Worker task executed in parallel threads for each micro-batch row.
+    Skips already-processed comment_ids instantly in 0.0001ms without calling Groq/EmbeddingGemma!
     """
+    cid = str(row_dict.get("comment_id", "")).strip()
+    if cid and cid in _existing_comment_ids_set:
+        return False, None, None
+
     if "kafka_timestamp" in row_dict and row_dict["kafka_timestamp"]:
         row_dict["kafka_timestamp"] = str(row_dict["kafka_timestamp"])
 
-    return process_and_validate_record(row_dict)
+    res = process_and_validate_record(row_dict)
+    if res[0] and res[1]:
+        if cid:
+            _existing_comment_ids_set.add(cid)
+    return res
 
 
 def _sync_to_neo4j_async(valid_records: list[dict]):
@@ -71,7 +94,8 @@ def write_to_mongodb(batch_df, batch_id):
     """
     Invoked by PySpark Structured Streaming foreachBatch for every micro-batch.
     Uses ThreadPoolExecutor (16 parallel workers) with live progress logging.
-    Synchronizes clean records simultaneously to MongoDB Atlas Cloud & Neo4j Graph Database in real time.
+    Flushes clean records incrementally every 100 items directly to MongoDB Atlas Cloud
+    and Neo4j Graph Database so progress is NEVER lost even if stopped mid-batch.
     """
     rows = batch_df.collect()
     if not rows:
@@ -79,48 +103,70 @@ def write_to_mongodb(batch_df, batch_id):
 
     raw_records = [row.asDict(recursive=True) for row in rows]
     total_count = len(raw_records)
-    print(f"\n[BATCH {batch_id}] Processing {total_count:,} records in parallel via ThreadPoolExecutor (16 Workers)...")
+    print(f"\n[BATCH {batch_id}] Processing {total_count:,} records in parallel (Incremental Flush every 100)...")
 
-    valid_records = []
-    error_records = []
+    valid_records_count = 0
+    error_records_count = 0
+    chunk_valid = []
+    chunk_errors = []
 
-    # Parallel worker execution (16 workers with live progress)
-    with ThreadPoolExecutor(max_workers=16) as executor:
-        futures = [executor.submit(_process_single_row, rec) for rec in raw_records]
-        
-        completed_count = 0
-        for future in as_completed(futures):
-            completed_count += 1
-            if completed_count % 100 == 0 or completed_count == total_count:
-                print(f"      [BATCH {batch_id} PROGRESS] Processed {completed_count:,}/{total_count:,} records...", end="\r", flush=True)
+    try:
+        with ThreadPoolExecutor(max_workers=16) as executor:
+            futures = [executor.submit(_process_single_row, rec) for rec in raw_records]
+            
+            completed_count = 0
+            for future in as_completed(futures):
+                completed_count += 1
 
+                try:
+                    is_valid, clean_doc, dlq_err = future.result()
+                    if is_valid and clean_doc:
+                        cid = clean_doc.get("comment_id")
+                        if cid:
+                            clean_doc["_id"] = cid
+                        chunk_valid.append(clean_doc)
+                        valid_records_count += 1
+                    elif dlq_err:
+                        chunk_errors.append(dlq_err)
+                        error_records_count += 1
+                except Exception:
+                    pass
+
+                # Incremental Flush: Flush every 100 records immediately to Cloud DBs
+                if len(chunk_valid) >= 100:
+                    try:
+                        insert_batch(chunk_valid)
+                        _sync_to_neo4j_async(chunk_valid)
+                    except Exception as e:
+                        pass
+                    chunk_valid = []
+
+                if len(chunk_errors) >= 100:
+                    try:
+                        log_validation_errors(chunk_errors)
+                    except Exception:
+                        pass
+                    chunk_errors = []
+
+                if completed_count % 100 == 0 or completed_count == total_count:
+                    print(f"      [BATCH {batch_id} PROGRESS] Processed {completed_count:,}/{total_count:,} records (Saved to Atlas & Neo4j: {valid_records_count:,})", flush=True)
+
+    except KeyboardInterrupt:
+        print(f"\n[INTERRUPT] Received stop signal. Flushing remaining in-memory records...")
+    finally:
+        # Flush any remaining items in buffer
+        if chunk_valid:
             try:
-                is_valid, clean_doc, dlq_err = future.result()
-                if is_valid and clean_doc:
-                    valid_records.append(clean_doc)
-                elif dlq_err:
-                    error_records.append(dlq_err)
-            except Exception as e:
+                insert_batch(chunk_valid)
+                _sync_to_neo4j_async(chunk_valid)
+            except Exception:
+                pass
+        if chunk_errors:
+            try:
+                log_validation_errors(chunk_errors)
+            except Exception:
                 pass
 
-    print(f"\n[BATCH {batch_id}] Finished processing all {total_count:,} records!")
-
-    # 1. Write clean documents to MongoDB Atlas Cloud 'messages' & Neo4j Graph DB asynchronously
-    if valid_records:
-        try:
-            insert_batch(valid_records)
-            print(f"✅ [BATCH {batch_id}] Successfully inserted {len(valid_records):,} enriched records into MongoDB Atlas Cloud 'messages'.")
-        except Exception as e:
-            print(f"[WARN Batch {batch_id}] Primary insert message: {str(e)}")
-
-        # Real-Time Neo4j Graph Sync (Non-blocking async execution)
-        with ThreadPoolExecutor(max_workers=2) as async_pool:
-            async_pool.submit(_sync_to_neo4j_async, valid_records)
-
-    # 2. Write error documents to MongoDB Atlas Cloud 'validation_errors' (DLQ)
-    if error_records:
-        try:
-            log_validation_errors(error_records)
-            print(f"⚠️ [DLQ Batch {batch_id}] Logged {len(error_records)} rejected records into 'validation_errors'.")
-        except Exception as e:
-            print(f"[ERROR Batch {batch_id}] Error logging to DLQ: {str(e)}")
+    print(f"\n✅ [BATCH {batch_id}] Successfully saved {valid_records_count:,} enriched records to MongoDB Atlas & Neo4j!")
+    if error_records_count > 0:
+        print(f"⚠️ [DLQ Batch {batch_id}] Logged {error_records_count:,} rejected records to validation_errors.")

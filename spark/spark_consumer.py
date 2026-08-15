@@ -15,10 +15,15 @@ def main():
     print("[TRANSFORM] Parsing payload & applying schema transformations...")
     messages = extract_message(stream_df)
 
+    import os
+    checkpoint_dir = os.path.abspath("checkpoints/spark_consumer")
+    os.makedirs(checkpoint_dir, exist_ok=True)
+
     print("[SINK] Starting micro-batch sink to MongoDB...")
     query = (
         messages.writeStream
         .foreachBatch(write_to_mongodb)
+        .option("checkpointLocation", checkpoint_dir)
         .outputMode("append")
         .start()
     )
