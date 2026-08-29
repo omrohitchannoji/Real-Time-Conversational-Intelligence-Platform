@@ -17,30 +17,30 @@ This enterprise-grade system ingests, validates, enriches, and visualizes high-v
 ## 🏗️ System Architecture
 
 ```mermaid
-flowchart TD
-    subgraph Data_Ingestion [📡 Data Ingestion & Streaming Layer]
-        A[Multi-Channel Raw Streams\nReddit / WhatsApp / Twitter] -->|Publish JSON Bytes| B[Apache Kafka 3.5 Broker\ntopic: conversational-context]
-        B -->|Micro-Batch Stream| C[PySpark 3.5 Structured Streaming]
+graph TD
+    subgraph Data_Ingestion ["📡 Data Ingestion & Streaming Layer"]
+        A["Multi-Channel Raw Streams (Reddit / WhatsApp / Twitter)"] -->|Publish JSON Bytes| B["Apache Kafka 3.5 Broker (topic: conversational-context)"]
+        B -->|Micro-Batch Stream| C["PySpark 3.5 Structured Streaming"]
     end
 
-    subgraph Validation_Enrichment [⚡ 8-Layer Validation & AI Enrichment Engine]
-        C --> D{8-Layer Schema & Business Validator}
-        D -->|Validation Failed| E[Dead Letter Queue DLQ\nMongoDB validation_errors]
-        D -->|Validation Passed| F[Google EmbeddingGemma-300M\n768D Dense Context Vector]
-        F --> G[Groq LPU Llama-3.3-70B\nZero-Shot Topic & Intent Classifier]
-        G --> H[Cosine Similarity Matrix\nS ∈ 0, 1 Parent Alignment]
+    subgraph Validation_Enrichment ["⚡ 8-Layer Validation & AI Enrichment Engine"]
+        C --> D{"8-Layer Schema & Business Validator"}
+        D -->|Validation Failed| E["Dead Letter Queue DLQ (MongoDB validation_errors)"]
+        D -->|Validation Passed| F["Google EmbeddingGemma-300M (768D Dense Context Vector)"]
+        F --> G["Groq LPU Llama-3.3-70B (Zero-Shot Topic & Intent Classifier)"]
+        G --> H["Cosine Similarity Matrix (Parent Alignment)"]
     end
 
-    subgraph Dual_Database [☁️ Polyglot Cloud Datastore Engine]
-        H -->|Clean Enriched JSON Docs| I[(🍃 MongoDB Atlas Cloud\nmessages & contexts)]
-        H -->|Social Graph Topology| J[(🕸️ Neo4j Graph Database\nNodes: User, Topic | Edges: INTERACTED_WITH)]
+    subgraph Dual_Database ["☁️ Polyglot Cloud Datastore Engine"]
+        H -->|Clean Enriched JSON Docs| I[("🍃 MongoDB Atlas Cloud (messages & contexts)")]
+        H -->|Social Graph Topology| J[("🕸️ Neo4j Graph Database (User & Topic Nodes)")]
     end
 
-    subgraph Intelligence_UI [📊 Live Streamlit Intelligence Dashboard]
-        I --> K[Executive KPI Overview & Analytics]
-        I --> L[Live Stream Monitor & WhatsApp Chat UI]
-        J --> M[2D Vis.js Physics Knowledge Graph]
-        I --> N[Sentiment & Topic Treemaps]
+    subgraph Intelligence_UI ["📊 Live Streamlit Intelligence Dashboard"]
+        I --> K["Executive KPI Overview & Analytics"]
+        I --> L["Live Stream Monitor & WhatsApp Chat UI"]
+        J --> M["2D Vis.js Physics Knowledge Graph"]
+        I --> N["Sentiment & Topic Treemaps"]
     end
 ```
 
