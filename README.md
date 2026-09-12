@@ -1,3 +1,14 @@
+---
+title: Real-Time Conversational Context Intelligence Platform
+emoji: 🚀
+colorFrom: indigo
+colorTo: purple
+sdk: streamlit
+sdk_version: "1.32.0"
+app_file: app.py
+pinned: false
+---
+
 # 🚀 Real-Time Conversational Context Intelligence Platform
 
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
