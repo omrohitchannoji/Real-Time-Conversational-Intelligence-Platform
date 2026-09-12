@@ -13,3 +13,5 @@ pandas>=2.0.0
 numpy>=1.24.0
 python-dotenv>=1.0.0
 pysqlite3-binary; sys_platform == 'linux'
+pyvis>=0.3.1
+
