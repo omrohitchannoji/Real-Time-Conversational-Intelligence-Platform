@@ -93,7 +93,7 @@ def _sync_to_neo4j_async(valid_records: list[dict]):
 def write_to_mongodb(batch_df, batch_id):
     """
     Invoked by PySpark Structured Streaming foreachBatch for every micro-batch.
-    Uses ThreadPoolExecutor (16 parallel workers) with live progress logging.
+    Uses ThreadPoolExecutor (3 parallel workers) with live progress logging.
     Flushes clean records incrementally every 100 items directly to MongoDB Atlas Cloud
     and Neo4j Graph Database so progress is NEVER lost even if stopped mid-batch.
     """
@@ -111,7 +111,7 @@ def write_to_mongodb(batch_df, batch_id):
     chunk_errors = []
 
     try:
-        with ThreadPoolExecutor(max_workers=16) as executor:
+        with ThreadPoolExecutor(max_workers=3) as executor:
             futures = [executor.submit(_process_single_row, rec) for rec in raw_records]
             
             completed_count = 0

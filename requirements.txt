@@ -1,0 +1,15 @@
+streamlit>=1.32.0
+plotly>=5.18.0
+pymongo>=4.6.0
+neo4j>=5.18.0
+torch>=2.1.0
+sentence-transformers>=2.3.0
+transformers>=4.38.0
+groq>=0.9.0
+chromadb>=0.4.22
+pydantic>=2.5.0
+kafka-python>=2.0.2
+pandas>=2.0.0
+numpy>=1.24.0
+python-dotenv>=1.0.0
+pysqlite3-binary; sys_platform == 'linux'

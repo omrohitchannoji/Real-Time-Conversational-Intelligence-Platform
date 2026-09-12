@@ -1,3 +1,11 @@
+import sys
+if sys.platform.startswith("linux"):
+    try:
+        __import__('pysqlite3')
+        sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+    except ImportError:
+        pass
+
 import chromadb
 import numpy as np
 from nlp.embeddings import EmbeddingGemmaEmbedder
@@ -10,7 +18,7 @@ class ConversationalVectorStore:
     Approximate Nearest Neighbor (ANN) vector similarity search & topic clustering.
     """
     def __init__(self, collection_name: str = "conversational_context_store"):
-        self.chroma_client = chromadb.Client()
+        self.chroma_client = chromadb.PersistentClient(path="./chroma_db_store")
         self.embedder = EmbeddingGemmaEmbedder()
         self.collection_name = collection_name
 

@@ -8,9 +8,10 @@ os.environ["PYSPARK_PYTHON"] = sys.executable
 os.environ["PYSPARK_DRIVER_PYTHON"] = sys.executable
 
 # 2. Set HADOOP_HOME for PySpark Windows compatibility (winutils.exe)
-hadoop_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "hadoop"))
-os.environ["HADOOP_HOME"] = hadoop_dir
-os.environ["PATH"] += os.pathsep + os.path.join(hadoop_dir, "bin")
+if sys.platform.startswith("win"):
+    hadoop_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "hadoop"))
+    os.environ["HADOOP_HOME"] = hadoop_dir
+    os.environ["PATH"] += os.pathsep + os.path.join(hadoop_dir, "bin")
 
 # 3. Dedicated local temp dir to prevent Windows AppData/Temp file lock errors
 temp_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "spark_temp"))

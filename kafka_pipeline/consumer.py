@@ -1,6 +1,6 @@
 from kafka import KafkaConsumer
 import json
-from config import BOOTSTRAP_SERVER, TOPIC
+from config.kafka_config import BOOTSTRAP_SERVER, TOPIC
 
 consumer = KafkaConsumer(
     TOPIC,
