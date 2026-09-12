@@ -8,7 +8,7 @@ LOCAL_COLLECTION_NAME = "raw_messages"
 DEVELOPMENT_DATASET_PATH = os.path.join("datasets", "development_dataset.csv")
 
 
-def ingest_development_dataset_to_local_mongo(batch_size: int = None):
+def ingest_development_dataset_to_local_mongo(batch_size: int = None, skip_rows: int = 0):
     """
     Reads records EXCLUSIVELY from datasets/development_dataset.csv and inserts raw message documents
     into Local MongoDB (raw_database.raw_messages at mongodb://localhost:27017).
@@ -16,7 +16,7 @@ def ingest_development_dataset_to_local_mongo(batch_size: int = None):
     print("=" * 80)
     print("[LOCAL MONGO INGESTION] DEVELOPMENT DATASET -> LOCAL MONGODB")
     print(f"   Target: {LOCAL_MONGO_URI} | DB: '{LOCAL_DB_NAME}' | Collection: '{LOCAL_COLLECTION_NAME}'")
-    print(f"   Dataset: '{DEVELOPMENT_DATASET_PATH}' | Limit: {'ALL' if batch_size is None else batch_size} records")
+    print(f"   Dataset: '{DEVELOPMENT_DATASET_PATH}' | Skip: {skip_rows} | Limit: {'ALL' if batch_size is None else batch_size} records")
     print("=" * 80)
 
     if not os.path.exists(DEVELOPMENT_DATASET_PATH):
@@ -36,7 +36,9 @@ def ingest_development_dataset_to_local_mongo(batch_size: int = None):
 
     # Read CSV records
     print(f"[1/2] Reading CSV from '{DEVELOPMENT_DATASET_PATH}'...")
-    if batch_size:
+    if skip_rows > 0 and batch_size:
+        df_raw = pd.read_csv(DEVELOPMENT_DATASET_PATH, skiprows=range(1, skip_rows + 1), nrows=batch_size, encoding="utf-8", on_bad_lines="skip")
+    elif batch_size:
         df_raw = pd.read_csv(DEVELOPMENT_DATASET_PATH, nrows=batch_size, encoding="utf-8", on_bad_lines="skip")
     else:
         df_raw = pd.read_csv(DEVELOPMENT_DATASET_PATH, encoding="utf-8", on_bad_lines="skip")
@@ -64,4 +66,7 @@ def ingest_development_dataset_to_local_mongo(batch_size: int = None):
 
 
 if __name__ == "__main__":
-    ingest_development_dataset_to_local_mongo()
+    # Change batch_size or skip_rows as needed
+    ingest_development_dataset_to_local_mongo(batch_size=50000, skip_rows=0)
+
+
