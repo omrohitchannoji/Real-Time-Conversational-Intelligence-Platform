@@ -11,13 +11,15 @@ pinned: false
 
 # 🚀 Real-Time Conversational Context Intelligence Platform
 
+[![Live Application](https://img.shields.io/badge/Live_Demo-Streamlit_Cloud-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://real-time-conversational-intelligence-platform.streamlit.app)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![Apache Kafka](https://img.shields.io/badge/Apache_Kafka-3.5-231F20?style=for-the-badge&logo=apachekafka&logoColor=white)](https://kafka.apache.org/)
 [![Apache Spark](https://img.shields.io/badge/Apache_Spark-3.5-E25A1C?style=for-the-badge&logo=apachespark&logoColor=white)](https://spark.apache.org/)
 [![MongoDB Atlas](https://img.shields.io/badge/MongoDB_Atlas-Cloud-47A248?style=for-the-badge&logo=mongodb&logoColor=white)](https://www.mongodb.com/cloud/atlas)
 [![Neo4j](https://img.shields.io/badge/Neo4j-Graph_DB-008CC1?style=for-the-badge&logo=neo4j&logoColor=white)](https://neo4j.com/)
-[![Groq LPU](https://img.shields.io/badge/Groq_LPU-Llama_3.3_70B-F05032?style=for-the-badge&logo=groq&logoColor=white)](https://groq.com/)
-[![Streamlit](https://img.shields.io/badge/Streamlit-Dashboard-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://streamlit.io/)
+[![Groq LPU](https://img.shields.io/badge/Groq_LPU-Qwen_3.8-F05032?style=for-the-badge&logo=groq&logoColor=white)](https://groq.com/)
+
+> 🌐 **Live Web Application**: [https://real-time-conversational-intelligence-platform.streamlit.app](https://real-time-conversational-intelligence-platform.streamlit.app)
 
 A state-of-the-art, high-throughput **Real-Time Conversational Context Modeling and Network Intelligence Platform**. 
 
