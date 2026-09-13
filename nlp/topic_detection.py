@@ -106,6 +106,7 @@ class GroqLLMTopicDetector:
                     "summary_intent": data.get("summary_intent", message_text[:60])
                 }
             except Exception as e:
+                print(f"[GROQ ERROR] Attempt {attempt} failed ({model_to_use}): {e}")
                 err_msg = str(e)
                 if "429" in err_msg or "rate_limit" in err_msg:
                     time.sleep(2)
