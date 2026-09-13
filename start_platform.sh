@@ -22,10 +22,12 @@ sudo docker start mongodb neo4j kafka || true
 echo "✅ [DOCKER] Containers running:"
 sudo docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 
-# 3. Start PM2 Streaming Services
-echo "[PM2] Resurrecting background streaming processes..."
+# 3. Start PySpark Consumer ONLY (Ensure Producer stays STOPPED)
+echo "[PM2] Managing background streaming processes..."
 cd ~/Real-Time-Conversational-Intelligence-Platform
-pm2 start ecosystem.config.js || pm2 resurrect || true
+pm2 stop kafka-producer || true
+pm2 start spark/spark_consumer.py --name pyspark-consumer --interpreter python3 --env PYTHONPATH=. || pm2 start pyspark-consumer || true
+pm2 save || true
 pm2 status
 
 PUBLIC_IP=$(curl -s ifconfig.me || hostname -I | awk '{print $1}')
