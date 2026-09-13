@@ -1,9 +1,10 @@
-﻿module.exports = {
+module.exports = {
   apps: [
     {
       name: 'kafka-producer',
       script: 'kafka_pipeline/producer.py',
       interpreter: 'python3',
+      autorestart: false,
       env: {
         PYTHONPATH: '.'
       }
