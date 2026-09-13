@@ -8,8 +8,8 @@ from dotenv import load_dotenv
 load_dotenv(override=True)
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL = "qwen/qwen3.8-27b"
-FALLBACK_GROQ_MODEL = "qwen/qwen3.6-27b"
+GROQ_MODEL = "groq/compound-mini"
+FALLBACK_GROQ_MODEL = "qwen/qwen3.8-27b"
 
 STOPWORDS = {
     "a", "about", "above", "after", "again", "against", "all", "am", "an", "and", "any", "are", "aren't", 
@@ -109,7 +109,7 @@ class GroqLLMTopicDetector:
                 print(f"[GROQ ERROR] Attempt {attempt} failed ({model_to_use}): {e}")
                 err_msg = str(e)
                 if "429" in err_msg or "rate_limit" in err_msg:
-                    time.sleep(2)
+                    time.sleep(3.5)
                 else:
                     time.sleep(0.5)
 
