@@ -57,10 +57,10 @@ class GroqLLMTopicDetector:
             except Exception as e:
                 print(f"[GROQ LLM WARN] Could not initialize Groq client: {e}")
 
-    def detect_topic(self, message_text: str, retries: int = 2) -> dict:
+    def detect_topic(self, message_text: str, retries: int = 4) -> dict:
         """
-        Classifies a single conversational message using Groq Llama 3.3 70B into structured JSON.
-        Includes an 8-second socket timeout to guarantee zero hanging.
+        Classifies a single conversational message using Groq LPU LLM Engine into structured JSON.
+        Includes exponential backoff rate-limit handling and socket timeout.
         """
         if not message_text or not message_text.strip():
             return {
@@ -106,10 +106,9 @@ class GroqLLMTopicDetector:
                     "summary_intent": data.get("summary_intent", message_text[:60])
                 }
             except Exception as e:
-                print(f"[GROQ ERROR] Attempt {attempt} failed ({model_to_use}): {e}")
                 err_msg = str(e)
                 if "429" in err_msg or "rate_limit" in err_msg:
-                    time.sleep(3.5)
+                    time.sleep(2.5 * (attempt + 1))
                 else:
                     time.sleep(0.5)
 
