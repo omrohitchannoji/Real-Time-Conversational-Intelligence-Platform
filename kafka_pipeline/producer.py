@@ -40,7 +40,7 @@ def record_generator():
         return
 
 
-def start_producer(delay_sec: float = 0.02):
+def start_producer(delay_sec: float = 2.0):
     """
     Kafka Producer Application:
     Streams raw messages directly from Local MongoDB (raw_database.raw_messages).
