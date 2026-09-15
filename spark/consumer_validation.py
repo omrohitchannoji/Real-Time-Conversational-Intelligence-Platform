@@ -11,7 +11,7 @@ torch.set_num_threads(4)
 
 # ONE-TIME GLOBAL MODEL PRE-LOADING AT MODULE IMPORT TIME
 # Loads 300MB PyTorch EmbeddingGemma & Groq LLM client ONCE in RAM for all worker threads.
-print("[CONSUMER INITIALIZATION] Pre-loading EmbeddingGemma-300M & Groq Llama-3.3-70B Engine globally...")
+print("[CONSUMER INITIALIZATION] Pre-loading EmbeddingGemma-300M & Groq Qwen-3.8-27B Engine globally...")
 try:
     _global_embedder = EmbeddingGemmaEmbedder()
     print("[CONSUMER INITIALIZATION] Successfully loaded global EmbeddingGemma-300M into RAM!")
