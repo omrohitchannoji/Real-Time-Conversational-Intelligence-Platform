@@ -30,6 +30,8 @@ def create_spark_session() -> SparkSession:
         .config("spark.driver.bindAddress", "127.0.0.1")
         .config("spark.driver.memory", "2g")
         .config("spark.executor.memory", "2g")
+        .config("spark.driver.maxResultSize", "2g")
+        .config("spark.rpc.message.maxSize", "512")
         .config("spark.local.dir", temp_dir)
         .config("spark.sql.streaming.checkpointLocation", "./checkpoints")
         .getOrCreate()

@@ -28,7 +28,7 @@ class MessageModel(BaseModel):
         if not v or not v.strip():
             raise ValueError("Message body cannot be empty or whitespace")
         if len(v) > 5000:
-            raise ValueError("Message exceeds maximum allowed length of 5000 characters")
+            return v[:4995] + "..."
         return v
 
 
