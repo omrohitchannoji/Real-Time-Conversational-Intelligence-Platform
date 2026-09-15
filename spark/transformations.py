@@ -7,7 +7,7 @@ def extract_message(stream_df):
     Parses raw Kafka byte payload into structured PySpark DataFrame columns.
     """
     json_df = stream_df.select(
-        col("timestamp").alias("kafka_timestamp"),
+        col("timestamp").cast("string").alias("kafka_timestamp"),
         col("topic"),
         col("partition"),
         col("offset"),
