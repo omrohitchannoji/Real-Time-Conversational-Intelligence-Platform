@@ -52,7 +52,7 @@ class GroqLLMTopicDetector:
             except Exception as e:
                 print(f"[GROQ LLM WARN] Could not initialize Groq client: {e}")
 
-    def detect_topic(self, message_text: str, retries: int = 10) -> dict:
+    def detect_topic(self, message_text: str, retries: int = 2) -> dict:
         """
         Classifies a single conversational message using 100% Pure Qwen 3.8 27B LLM into structured JSON.
         Includes exponential backoff rate-limit handling and zero heuristic fallback.
