@@ -65,11 +65,7 @@ class GroqLLMTopicDetector:
             }
 
         if self.client is None:
-            return {
-                "detected_topic_name": "General Community Discussion",
-                "topic_keywords": ["General"],
-                "summary_intent": message_text[:120]
-            }
+            return self._heuristic_fallback(message_text)
 
         system_prompt = (
             "You are an expert NLP Real-Time Conversational Context Classifier.\n"
@@ -111,20 +107,16 @@ class GroqLLMTopicDetector:
                     "summary_intent": data.get("summary_intent", message_text[:120])
                 }
             except Exception as e:
-                print(f"[GROQ PURE LLM RETRY] Attempt {attempt+1}/{retries} ({GROQ_MODEL}): {e}")
+                print(f"[GROQ LLM RETRY] Attempt {attempt+1}/{retries} ({GROQ_MODEL}): {e}")
                 err_msg = str(e)
                 if "429" in err_msg or "rate_limit" in err_msg:
                     time.sleep(3.0 * (attempt + 1))
                 else:
                     time.sleep(1.0)
 
-        # High-precision fallback if all 10 retries are exhausted
-        words = [w.capitalize() for w in re.sub(r'[^\w\s]', '', message_text).split() if len(w) > 3][:4]
-        return {
-            "detected_topic_name": "General Community Discussion",
-            "topic_keywords": words or ["General"],
-            "summary_intent": message_text[:120]
-        }
+        # High-precision keyword taxonomy fallback if LLM retries are exhausted
+        print(f"[GROQ LLM FALLBACK] Retries exhausted for message. Invoking taxonomy classifier fallback.")
+        return self._heuristic_fallback(message_text)
 
     def fit_predict(self, messages: list[str]) -> tuple[list[int], dict]:
         """

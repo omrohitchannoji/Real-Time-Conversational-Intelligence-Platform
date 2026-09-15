@@ -28,6 +28,8 @@ def create_spark_session() -> SparkSession:
         .config("spark.jars.packages", KAFKA_PACKAGE)
         .config("spark.driver.host", "127.0.0.1")
         .config("spark.driver.bindAddress", "127.0.0.1")
+        .config("spark.driver.memory", "2g")
+        .config("spark.executor.memory", "2g")
         .config("spark.local.dir", temp_dir)
         .config("spark.sql.streaming.checkpointLocation", "./checkpoints")
         .getOrCreate()
