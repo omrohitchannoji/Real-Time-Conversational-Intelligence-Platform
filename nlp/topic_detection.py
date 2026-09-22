@@ -69,14 +69,11 @@ class GroqLLMTopicDetector:
 
         system_prompt = (
             "You are an expert NLP Real-Time Conversational Context Classifier.\n"
-            "Analyze the user's conversational message and output a JSON object with:\n"
-            "1. 'detected_topic_name': A clean, professional 2-4 word Topic Category name (e.g. 'Indian State Politics & Governance', 'Career & Aviation Inquiries', 'Legal & Inheritance Advice', 'Travel & Indian Cities', 'Technology & Software Engineering', 'Healthcare & Medical Consultations', 'Finance & Stock Market', 'Sports & Entertainment').\n"
-            "2. 'topic_keywords': An array of 3-4 specific context keywords extracted from the message.\n"
-            "3. 'summary_intent': A concise 1-sentence summary of the user's intent.\n\n"
-            "Rules:\n"
-            "- DO NOT use vulgar, profane, or inappropriate words in topic names.\n"
-            "- Output MUST be valid JSON only.\n"
-            "- Be concise. Keep all values short."
+            "Analyze the user message and return a JSON object with:\n"
+            "1. 'detected_topic_name': 2-3 word topic category.\n"
+            "2. 'topic_keywords': list of 2-3 keywords.\n"
+            "3. 'summary_intent': short summary under 10 words.\n"
+            "Output MUST be valid JSON only."
         )
 
         for attempt in range(retries):
@@ -85,35 +82,35 @@ class GroqLLMTopicDetector:
                 with _rate_limit_lock:
                     now = time.time()
                     elapsed = now - _last_api_call_time
-                    if elapsed < 4.0:
-                        time.sleep(4.0 - elapsed)
+                    if elapsed < 4.5:
+                        time.sleep(4.5 - elapsed)
                     _last_api_call_time = time.time()
 
                 response = self.client.chat.completions.create(
                     model=GROQ_MODEL,
                     messages=[
                         {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": f"Message: \"{message_text[:500]}\""}
+                        {"role": "user", "content": f"Message: \"{message_text[:300]}\""}
                     ],
                     response_format={"type": "json_object"},
                     temperature=0.1,
-                    max_tokens=50,
-                    timeout=15.0
+                    max_tokens=85,
+                    timeout=12.0
                 )
                 raw_json = response.choices[0].message.content.strip()
                 data = json.loads(raw_json)
                 return {
                     "detected_topic_name": data.get("detected_topic_name", "General Inquiries"),
                     "topic_keywords": data.get("topic_keywords", ["General"]),
-                    "summary_intent": data.get("summary_intent", message_text[:120])
+                    "summary_intent": data.get("summary_intent", message_text[:100])
                 }
             except Exception as e:
                 print(f"[GROQ LLM RETRY] Attempt {attempt+1}/{retries} ({GROQ_MODEL}): {e}")
                 err_msg = str(e)
                 if "429" in err_msg or "rate_limit" in err_msg:
-                    time.sleep(8.0 * (attempt + 1))
+                    time.sleep(10.0 * (attempt + 1))
                 else:
-                    time.sleep(2.0)
+                    time.sleep(1.5)
 
         # High-precision keyword taxonomy fallback if LLM retries are exhausted
         print(f"[GROQ LLM FALLBACK] Retries exhausted for message. Invoking taxonomy classifier fallback.")
