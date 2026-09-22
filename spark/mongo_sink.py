@@ -111,7 +111,7 @@ def write_to_mongodb(batch_df, batch_id):
     chunk_errors = []
 
     try:
-        with ThreadPoolExecutor(max_workers=3) as executor:
+        with ThreadPoolExecutor(max_workers=1) as executor:
             futures = [executor.submit(_process_single_row, rec) for rec in raw_records]
             
             completed_count = 0

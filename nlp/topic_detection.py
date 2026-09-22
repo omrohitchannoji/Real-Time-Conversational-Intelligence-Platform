@@ -52,10 +52,10 @@ class GroqLLMTopicDetector:
             except Exception as e:
                 print(f"[GROQ LLM WARN] Could not initialize Groq client: {e}")
 
-    def detect_topic(self, message_text: str, retries: int = 2) -> dict:
+    def detect_topic(self, message_text: str, retries: int = 3) -> dict:
         """
         Classifies a single conversational message using 100% Pure Qwen 3.8 27B LLM into structured JSON.
-        Includes exponential backoff rate-limit handling and zero heuristic fallback.
+        Includes exponential backoff rate-limit handling and heuristic fallback.
         """
         if not message_text or not message_text.strip():
             return {
@@ -75,7 +75,8 @@ class GroqLLMTopicDetector:
             "3. 'summary_intent': A concise 1-sentence summary of the user's intent.\n\n"
             "Rules:\n"
             "- DO NOT use vulgar, profane, or inappropriate words in topic names.\n"
-            "- Output MUST be valid JSON only."
+            "- Output MUST be valid JSON only.\n"
+            "- Be concise. Keep all values short."
         )
 
         for attempt in range(retries):
@@ -84,20 +85,20 @@ class GroqLLMTopicDetector:
                 with _rate_limit_lock:
                     now = time.time()
                     elapsed = now - _last_api_call_time
-                    if elapsed < 2.0:
-                        time.sleep(2.0 - elapsed)
+                    if elapsed < 4.0:
+                        time.sleep(4.0 - elapsed)
                     _last_api_call_time = time.time()
 
                 response = self.client.chat.completions.create(
                     model=GROQ_MODEL,
                     messages=[
                         {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": f"Message: \"{message_text}\""}
+                        {"role": "user", "content": f"Message: \"{message_text[:500]}\""}
                     ],
                     response_format={"type": "json_object"},
-                    temperature=0.2,
-                    max_tokens=200,
-                    timeout=12.0
+                    temperature=0.1,
+                    max_tokens=50,
+                    timeout=15.0
                 )
                 raw_json = response.choices[0].message.content.strip()
                 data = json.loads(raw_json)
@@ -110,9 +111,9 @@ class GroqLLMTopicDetector:
                 print(f"[GROQ LLM RETRY] Attempt {attempt+1}/{retries} ({GROQ_MODEL}): {e}")
                 err_msg = str(e)
                 if "429" in err_msg or "rate_limit" in err_msg:
-                    time.sleep(3.0 * (attempt + 1))
+                    time.sleep(8.0 * (attempt + 1))
                 else:
-                    time.sleep(1.0)
+                    time.sleep(2.0)
 
         # High-precision keyword taxonomy fallback if LLM retries are exhausted
         print(f"[GROQ LLM FALLBACK] Retries exhausted for message. Invoking taxonomy classifier fallback.")
