@@ -132,8 +132,8 @@ def write_to_mongodb(batch_df, batch_id):
                 except Exception:
                     pass
 
-                # Incremental Flush: Flush every 100 records immediately to Cloud DBs
-                if len(chunk_valid) >= 100:
+                # Incremental Flush: Flush every 20 records immediately to Cloud DBs
+                if len(chunk_valid) >= 20:
                     try:
                         insert_batch(chunk_valid)
                         _sync_to_neo4j_async(chunk_valid)
@@ -141,14 +141,14 @@ def write_to_mongodb(batch_df, batch_id):
                         pass
                     chunk_valid = []
 
-                if len(chunk_errors) >= 100:
+                if len(chunk_errors) >= 20:
                     try:
                         log_validation_errors(chunk_errors)
                     except Exception:
                         pass
                     chunk_errors = []
 
-                if completed_count % 100 == 0 or completed_count == total_count:
+                if completed_count % 10 == 0 or completed_count == total_count:
                     print(f"      [BATCH {batch_id} PROGRESS] Processed {completed_count:,}/{total_count:,} records (Saved to Atlas & Neo4j: {valid_records_count:,})", flush=True)
 
     except KeyboardInterrupt:
