@@ -34,11 +34,45 @@ STOPWORDS = {
 }
 
 
+CANONICAL_TOPICS = [
+    "Indian Politics & Governance",
+    "Technology & Software Engineering",
+    "Finance, Banking & Economy",
+    "Healthcare & Medical Consultations",
+    "Travel & Urban Infrastructure",
+    "Education & Career Guidance",
+    "Sports & Entertainment",
+    "Community Discussion & Social Opinion"
+]
+
+
+def normalize_topic_name(topic_raw: str) -> str:
+    """Normalizes fine-grained or fragmented topic titles to standardized canonical categories."""
+    t = str(topic_raw).strip()
+    t_lower = t.lower()
+    if any(k in t_lower for k in ["politic", "election", "bjp", "congress", "governance", "minister", "parliament", "mla", "mp", "vote"]):
+        return "Indian Politics & Governance"
+    if any(k in t_lower for k in ["tech", "software", "code", "ai", "hardware", "gpu", "app", "python", "developer", "server"]):
+        return "Technology & Software Engineering"
+    if any(k in t_lower for k in ["finance", "bank", "tax", "stock", "money", "economy", "investment", "salary", "rupee", "fraud"]):
+        return "Finance, Banking & Economy"
+    if any(k in t_lower for k in ["health", "medic", "doctor", "hospital", "disease", "treatment", "clinic"]):
+        return "Healthcare & Medical Consultations"
+    if any(k in t_lower for k in ["travel", "cit", "train", "flight", "mumbai", "delhi", "bangalore", "road", "traffic"]):
+        return "Travel & Urban Infrastructure"
+    if any(k in t_lower for k in ["career", "job", "education", "college", "exam", "student", "degree", "university", "interview"]):
+        return "Education & Career Guidance"
+    if any(k in t_lower for k in ["sport", "cricket", "movie", "film", "entertain", "actor", "series", "boxoffice", "song"]):
+        return "Sports & Entertainment"
+    if any(k in t_lower for k in ["system", "data integrity", "deleted", "placeholder", "removed", "missing"]):
+        return "Community Discussion & Social Opinion"
+    return t if t in CANONICAL_TOPICS else "Community Discussion & Social Opinion"
+
+
 class GroqLLMTopicDetector:
     """
     100% Pure Groq LPU Qwen 3.8 27B LLM Topic & Intent Detection Engine.
-    Extracts precise 2-4 word Topic Names, Context Keywords, and User Intent in JSON format.
-    Thread-safe rate limiter guarantees requests respect Groq's 30 RPM quota with 100% Pure LLM output.
+    Extracts precise canonical Topic Names, Context Keywords, and User Intent in JSON format.
     """
     def __init__(self, api_key: str = None):
         self.api_key = api_key or os.getenv("GROQ_API_KEY", "")
@@ -54,14 +88,22 @@ class GroqLLMTopicDetector:
 
     def detect_topic(self, message_text: str, retries: int = 3) -> dict:
         """
-        Classifies a single conversational message using 100% Pure Qwen 3.8 27B LLM into structured JSON.
-        Includes exponential backoff rate-limit handling and heuristic fallback.
+        Classifies a single conversational message using Groq Qwen 3.8 27B LLM into structured JSON.
+        Outputs standardized canonical categories with exponential backoff rate-limit handling.
         """
         if not message_text or not message_text.strip():
             return {
-                "detected_topic_name": "General Inquiries",
-                "topic_keywords": ["Message"],
+                "detected_topic_name": "Community Discussion & Social Opinion",
+                "topic_keywords": ["Discussion"],
                 "summary_intent": "Empty or deleted message"
+            }
+
+        # Check for placeholder messages
+        if message_text.strip().lower() in ["[deleted]", "[removed]", "nan", "none", "null"]:
+            return {
+                "detected_topic_name": "Community Discussion & Social Opinion",
+                "topic_keywords": ["Discussion"],
+                "summary_intent": "Placeholder message"
             }
 
         if self.client is None:
@@ -70,9 +112,9 @@ class GroqLLMTopicDetector:
         system_prompt = (
             "You are an expert NLP Real-Time Conversational Context Classifier.\n"
             "Analyze the user message and return a JSON object with:\n"
-            "1. 'detected_topic_name': 2-3 word topic category.\n"
-            "2. 'topic_keywords': list of 2-3 keywords.\n"
-            "3. 'summary_intent': short summary under 10 words.\n"
+            "1. 'detected_topic_name': Exactly ONE of: ['Indian Politics & Governance', 'Technology & Software Engineering', 'Finance, Banking & Economy', 'Healthcare & Medical Consultations', 'Travel & Urban Infrastructure', 'Education & Career Guidance', 'Sports & Entertainment', 'Community Discussion & Social Opinion'].\n"
+            "2. 'topic_keywords': list of 2-3 specific keywords from the message.\n"
+            "3. 'summary_intent': concise summary under 10 words.\n"
             "Output MUST be valid JSON only."
         )
 
@@ -99,9 +141,13 @@ class GroqLLMTopicDetector:
                 )
                 raw_json = response.choices[0].message.content.strip()
                 data = json.loads(raw_json)
+                raw_topic = data.get("detected_topic_name", "Community Discussion & Social Opinion")
+                canonical_topic = normalize_topic_name(raw_topic)
+                raw_kws = data.get("topic_keywords", ["General"])
+                filtered_kws = [k for k in raw_kws if k.lower() not in {"deleted", "removed", "missing", "placeholder", "content"}]
                 return {
-                    "detected_topic_name": data.get("detected_topic_name", "General Inquiries"),
-                    "topic_keywords": data.get("topic_keywords", ["General"]),
+                    "detected_topic_name": canonical_topic,
+                    "topic_keywords": filtered_kws or ["Discussion"],
                     "summary_intent": data.get("summary_intent", message_text[:100])
                 }
             except Exception as e:

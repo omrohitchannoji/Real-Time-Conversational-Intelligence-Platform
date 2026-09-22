@@ -4,12 +4,20 @@ MIN_MESSAGE_LENGTH = 1
 MAX_MESSAGE_LENGTH = 5000
 
 
+DISCARDED_PLACEHOLDERS = {
+    "[deleted]", "[removed]", "[deleted by user]", "[removed by moderator]",
+    "nan", "none", "null", "<deleted>", "<removed>"
+}
+
+
 def validate_message_length(message: str) -> tuple[bool, str]:
     """
-    Validates message character length bounds (1 to 5000 characters).
+    Validates message character length bounds (1 to 5000 characters) and discards placeholders.
     """
     if not message or len(message.strip()) < MIN_MESSAGE_LENGTH:
         return False, f"Message empty or under minimum length of {MIN_MESSAGE_LENGTH} char(s)"
+    if message.strip().lower() in DISCARDED_PLACEHOLDERS:
+        return False, f"Message contains discarded placeholder token: '{message.strip()}'"
     if len(message) > MAX_MESSAGE_LENGTH:
         return False, f"Message exceeds maximum allowed length of {MAX_MESSAGE_LENGTH} chars"
     return True, ""

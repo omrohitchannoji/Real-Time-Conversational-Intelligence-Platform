@@ -34,7 +34,8 @@ STOPWORDS = {
     "good", "bad", "say", "says", "said", "post", "posts", "comment", "comments", "reddit", "user",
     "doesnt", "didnt", "isnt", "arent", "wasnt", "werent", "havent", "hasnt", "hadnt", "wont",
     "wouldnt", "couldnt", "shouldnt", "cant", "dont", "youre", "theyre", "theres", "thats",
-    "whats", "hes", "shes", "ive", "ill", "id", "youve", "youll", "youd"
+    "whats", "hes", "shes", "ive", "ill", "id", "youve", "youll", "youd",
+    "deleted", "removed", "missing", "placeholder", "content", "unavailable"
 }
 
 
@@ -118,22 +119,47 @@ def get_sentiment_distribution():
         return pd.DataFrame([{"Sentiment": "⚪ Neutral", "Count": 100, "Percentage": 100.0}])
 
 
+def _normalize_display_topic(t: str) -> str:
+    t_str = str(t).strip()
+    t_low = t_str.lower()
+    if any(k in t_low for k in ["politic", "election", "bjp", "congress", "governance"]):
+        return "Indian Politics & Governance"
+    if any(k in t_low for k in ["tech", "software", "code", "ai", "hardware"]):
+        return "Technology & Software Engineering"
+    if any(k in t_low for k in ["finance", "bank", "tax", "stock", "money", "fraud"]):
+        return "Finance, Banking & Economy"
+    if any(k in t_low for k in ["health", "medic", "doctor", "hospital"]):
+        return "Healthcare & Medical Consultations"
+    if any(k in t_low for k in ["travel", "cit", "train", "flight", "mumbai", "delhi"]):
+        return "Travel & Urban Infrastructure"
+    return t_str
+
+
 def get_groq_llm_topic_distribution(limit=10):
     """
     Aggregates Groq LLM Human-Grade Detected Topics (context_modeling.detected_topic_name)
-    directly from MongoDB Atlas Cloud.
+    directly from MongoDB Atlas Cloud, filtering placeholders and normalizing canonical categories.
     """
     try:
         pipeline = [
-            {"$match": {"context_modeling.detected_topic_name": {"$exists": True, "$ne": None}}},
+            {"$match": {
+                "context_modeling.detected_topic_name": {
+                    "$exists": True, 
+                    "$nin": [None, "", "System & Data Integrity", "[deleted]", "[removed]"]
+                }
+            }},
             {"$group": {"_id": "$context_modeling.detected_topic_name", "count": {"$sum": 1}}},
             {"$sort": {"count": -1}},
-            {"$limit": limit}
+            {"$limit": limit * 2}
         ]
         results = list(messages_col.aggregate(pipeline))
         if results:
-            df = pd.DataFrame(results)
-            df.columns = ["Topic Category", "Message Count"]
+            normalized_counts = Counter()
+            for r in results:
+                name = _normalize_display_topic(r["_id"])
+                normalized_counts[name] += int(r["count"])
+            top = normalized_counts.most_common(limit)
+            df = pd.DataFrame([{"Topic Category": k, "Message Count": v} for k, v in top])
             return df
     except Exception as e:
         print(f"[WARN] Error fetching LLM topics: {e}")

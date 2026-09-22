@@ -27,6 +27,12 @@ class MessageModel(BaseModel):
     def validate_message_body(cls, v: str) -> str:
         if not v or not v.strip():
             raise ValueError("Message body cannot be empty or whitespace")
+        clean_val = v.strip().lower()
+        if clean_val in {
+            "[deleted]", "[removed]", "[deleted by user]", "[removed by moderator]",
+            "nan", "none", "null", "<deleted>", "<removed>"
+        }:
+            raise ValueError(f"Message body contains discarded placeholder token: '{v.strip()}'")
         if len(v) > 5000:
             return v[:4995] + "..."
         return v
